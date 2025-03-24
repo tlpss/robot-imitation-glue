@@ -1,0 +1,9 @@
+[submodule "airo-mono"]
+	path = airo-mono
+	url = https://github.com/airo-ugent/airo-mono.git
+[submodule "airo-ipc"]
+	path = airo-ipc
+	url = https://github.com/airo-ugent/airo-ipc
+[submodule "lerobot"]
+	path = lerobot
+	url = https://github.com/tlpss/lerobot.git
