@@ -33,3 +33,19 @@ class ProprioObservationSpec:
     representation = None
     reference_frame = None
 
+
+class BaseDatasetRecorder:
+    def __init__(self):
+        pass
+
+    def start_episode(self):
+        raise NotImplementedError
+
+    def record_step(self, obs, action):
+        raise NotImplementedError
+
+    def save_episode(self):
+        raise NotImplementedError
+
+    def finish_recording(self):
+        pass

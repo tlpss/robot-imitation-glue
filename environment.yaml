@@ -3,27 +3,18 @@
 # also make sure to install the local packages with the "-e" prefix
 # to create an environment: conda env create -f environment.yaml
 # to update: conda env update -f environment.yaml
-name: robot-imitation-glue
+name: robilglue
 channels:
   - pytorch
   - conda-forge
 dependencies:
-  - python=3.12
-  - pytorch
-  - cudatoolkit=11.3
-  - torchvision
+  - python=3.10
   - pip
   - pip:
-    - numpy
-    - matplotlib
-    - scipy
-    - wandb
-    - pytorch-lightning
-    - imageio
-    - albumentations
-    - timm
-    - pytest
-    - pre-commit
-    - mypy
-    - darglint
-    - -e robot_imitation_glue/
+    -  airo-ipc/
+    -  airo-mono/airo-typing
+    -  airo-mono/airo-dataset-tools
+    -  airo-mono/airo-spatial-algebra
+    -  airo-mono/airo-camera-toolkit
+    -  airo-mono/airo-robots
+    - -e .
