@@ -6,6 +6,7 @@
 ### Local installation
 
 - clone this repo
+- initialize and update submodules: `git submodule update --init`
 - create the conda environment `conda env create -f environment.yaml`
 - initialize the pre-commit hooks `pre-commit install`
 
