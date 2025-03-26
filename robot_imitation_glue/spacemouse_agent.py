@@ -4,7 +4,10 @@ class SpaceMouseAgent(BaseAgent):
     ACTION_SPEC = None
 
     def __init__(self):
+        # hw specific imports
+
         pass 
+    
 
     def get_action(self, observation):
         del observation

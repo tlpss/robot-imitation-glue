@@ -94,8 +94,12 @@ class LeRobotDatasetRecorder(BaseDatasetRecorder):
         # # add action to features
         # features["action"] = {"dtype": "float32", "shape": env.action_space.shape, "names": None}
 
-        print(f"Features: {features}")
+        #print(f"Features: {features}")
         # create the dataset
+
+        #TODO: if dataset exists, load it to extend it.
+
+        
         self.lerobot_dataset = LeRobotDataset.create(
             repo_id=dataset_name,
             fps=self.fps,
@@ -103,7 +107,7 @@ class LeRobotDatasetRecorder(BaseDatasetRecorder):
             features=features,
             use_videos=use_videos,
             image_writer_processes=0,
-            image_writer_threads=4 * num_cameras,
+            image_writer_threads=4,
         )
 
     def start_episode(self):
