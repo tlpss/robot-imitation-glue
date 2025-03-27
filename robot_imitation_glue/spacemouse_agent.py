@@ -1,44 +1,95 @@
 import pyspacemouse
 from scipy.spatial.transform import Rotation as R
+import threading
+import time
+import queue
+from collections import deque
 
 from robot_imitation_glue.base import BaseAgent
-
 
 class SpaceMouseAgent(BaseAgent):
     ACTION_SPEC = None
 
-    def __init__(self):
-        # Open spacemouse and verify that it is found
-        mouse_found = pyspacemouse.open()
-        assert mouse_found, "No SpaceMouse found, exiting"
+    def __init__(self, buffer_size=10):  # Add buffer_size as a parameter
+        self.state_buffer = deque(maxlen=buffer_size)  # Use deque as a rolling buffer
+        self.running = True
 
-        # self.gripper_state = 0 # Has to be read from the gripper and given to the agent
+        # separate thread needed for continuous reading of SpaceMouse
+        # cf. https://github.com/wuphilipp/gello_software/blob/main/gello/agents/spacemouse_agent.py
+        # 
+        self.thread = threading.Thread(target=self._spacemouse_thread)
+        self.thread.daemon = True
+        self.thread.start()
 
-    def get_action(self, observation):
+    def _spacemouse_thread(self):
+        try:
+            pyspacemouse.open()
+            print("SpaceMouse connected successfully!")
+        except Exception as e:
+            raise ValueError(f"Could not open SpaceMouse: {e}")
+        
+        while self.running:
+            try:
+                state = pyspacemouse.read()
+                if state is not None:
+                    self.state_buffer.append(state)
+            except Exception as e:
+                print(f"Error reading SpaceMouse: {e}")
+                break
+
+    def get_action(self, observation=None):
         del observation
 
-        # read from space mouse
-        state = pyspacemouse.read()
+        if not self.state_buffer: # check if buffer is empty.
+            return [0,0,0,0,0,0,0]
 
-        # return relative action as a rotvec
+        state = self.state_buffer[-1] # get the most recent item from the buffer.
+
         roll, pitch, yaw = state.roll, state.pitch, state.yaw
-        rotvec = R.from_euler("xyz", [roll, pitch, yaw], degrees=True).as_rotvec()
+        pos = [state.x, state.y, state.z]
+        rot = [roll, pitch, yaw]
 
-        # TODO gripper action: absolute (how? with gripper state inside this agent?) or relative?
+        #TODO: make these configurable
+        deadzone_value = 0.1
+        rescale_pos = 0.01
+        rescale_rot = 0.01
+
+        for i in range(3):
+            if abs(pos[i]) < deadzone_value:
+                pos[i] = 0
+            else:
+                pos[i] *= rescale_pos
+
+        for i in range(3):
+            if abs(rot[i]) < deadzone_value:
+                rot[i] = 0
+            else:
+                rot[i] *= rescale_rot
+
         gripper_action = 0
+        if state.buttons[1]:
+            gripper_action = -0.1
+        elif state.buttons[0]:
+            gripper_action = 0.1
 
-        # if state.buttons[1]: # If the right button is pressed (or both)
-        #     gripper_action = 0 # Closed gripper
-        # elif state.buttons[0]:  # If only the left button is pressed (or both)
-        #     gripper_action = 1 # Open gripper
-        # else: # If no button is pressed
-        #     gripper_action = self.gripper_state # Keep the current gripper state
+        return [*pos, *rot, gripper_action]
 
-        return [state.x, state.y, state.z, *rotvec, gripper_action]
+    def close(self):
+        self.running = False
+        if self.thread.is_alive():
+            self.thread.join()
 
-
-# Test the agent
 if __name__ == "__main__":
-    agent = SpaceMouseAgent()
-    while True:
-        print(agent.get_action(None))
+    try:
+        agent = SpaceMouseAgent(buffer_size=5) # set buffer size.
+        while True:
+            action = agent.get_action()
+            print(f"Action: {action}")
+            time.sleep(0.05)
+    except ValueError as e:
+        print(e)
+    except KeyboardInterrupt:
+        print("Program terminated by user.")
+    finally:
+        if 'agent' in locals():
+            agent.close()

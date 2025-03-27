@@ -86,6 +86,9 @@ class UR3eStation(BaseEnv):
 
         # set up additional sensors if needed.
 
+        # rr.init("ur3e-station",spawn=True)
+
+
     def get_robot_pose(self):
         """ 
         pose as [x,y,z,rx,ry,rz] in robot base frame using Euler angles
@@ -118,6 +121,11 @@ class UR3eStation(BaseEnv):
             "robot_pose": robot_state,
             "gripper_state": gripper_state,
         }
+
+        # add to rerun 
+        # rr.log("wrist",rr.Image(wrist_image))
+        # rr.log("scene",rr.Image(scene_image))
+
         return obs_dict
 
     def act(self,target_pose: np.ndarray, timestamp: float):
