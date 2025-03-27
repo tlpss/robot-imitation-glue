@@ -11,6 +11,8 @@ class DummyDatasetRecorder(BaseDatasetRecorder):
 
     def record_step(self, obs, action):
         print("recording step")
+        print("saving obs:", obs)
+        print("saving action:", action)
 
     def save_episode(self):
         print("saving dataset episode")

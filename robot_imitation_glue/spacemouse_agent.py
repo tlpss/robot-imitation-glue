@@ -7,6 +7,9 @@ from collections import deque
 
 from robot_imitation_glue.base import BaseAgent
 
+import loguru
+
+logger = loguru.logger
 class SpaceMouseAgent(BaseAgent):
     ACTION_SPEC = None
 
@@ -34,25 +37,30 @@ class SpaceMouseAgent(BaseAgent):
                 if state is not None:
                     self.state_buffer.append(state)
             except Exception as e:
-                print(f"Error reading SpaceMouse: {e}")
+                ValueError(f"Error reading SpaceMouse: {e}")
                 break
 
     def get_action(self, observation=None):
         del observation
 
         if not self.state_buffer: # check if buffer is empty.
+            logger.warning("SpaceMouse buffer is empty.")
             return [0,0,0,0,0,0,0]
 
-        state = self.state_buffer[-1] # get the most recent item from the buffer.
+        state = self.state_buffer.pop()
+        
 
-        roll, pitch, yaw = state.roll, state.pitch, state.yaw
-        pos = [state.x, state.y, state.z]
+        # do a conversion from the spacemouse coordinate frame to a different coordinate frame that makes teleop more intuitive
+        # for the orientations. each twist on the axis corresponds now to how you want the robot to twist as well. 
+        roll, pitch, yaw = -state.pitch, state.roll, -state.yaw
         rot = [roll, pitch, yaw]
+
+        pos = [state.x, state.y, state.z]
 
         #TODO: make these configurable
         deadzone_value = 0.1
-        rescale_pos = 0.01
-        rescale_rot = 0.01
+        rescale_pos = 0.05
+        rescale_rot = 0.05
 
         for i in range(3):
             if abs(pos[i]) < deadzone_value:

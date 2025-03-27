@@ -78,7 +78,7 @@ class RGBCameraPublisher(Node):
         self._publish(self._rgb_topic_name, RGBFrame(rgb=rgb, intrinsics=self._camera.intrinsics_matrix(),timestamp=np.array([time.time()])))
 
     def _teardown(self):
-            pass
+         pass
 
 class RGBCameraSubscriber(RGBCamera):
 

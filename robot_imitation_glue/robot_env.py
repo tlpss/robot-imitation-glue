@@ -31,9 +31,9 @@ ROBOT_IP = "10.42.0.162"
 logger = loguru.logger
 class CameraFactory:
     def create_wrist_camera():
-        return Realsense(resolution=Realsense.RESOLUTION_720, fps=30, serial_number=WRIST_REALSENSE_SERIAL)
+        return Realsense(resolution=Realsense.RESOLUTION_480, fps=30, serial_number=WRIST_REALSENSE_SERIAL)
     def create_scene_camera():
-        return Realsense(resolution=Realsense.RESOLUTION_720, fps=30, serial_number=SCENE_REALSENSE_SERIAL)
+        return Realsense(resolution=Realsense.RESOLUTION_480, fps=30, serial_number=SCENE_REALSENSE_SERIAL)
     
 class UR3eStation(BaseEnv):
     ACTION_SPEC = None
@@ -42,20 +42,21 @@ class UR3eStation(BaseEnv):
     def __init__(self):
         # set up cameras
         initialize_ipc()
-        logger.info("Creating wrist camera publisher.")
-        self._wrist_camera_publisher = RGBCameraPublisher(
-            CameraFactory.create_wrist_camera,
-            WRIST_CAM_RGB_TOPIC,
-            WRIST_CAM_RESOLUTION_TOPIC,
-            100,
-        )
-        self._wrist_camera_publisher.start()
         
-        logger.info("Creating wrist camera subscriber.")
-        self._wrist_camera_subscriber = RGBCameraSubscriber(
-            WRIST_CAM_RESOLUTION_TOPIC,
-            WRIST_CAM_RGB_TOPIC,
-        )
+        # logger.info("Creating wrist camera publisher.")
+        # self._wrist_camera_publisher = RGBCameraPublisher(
+        #     CameraFactory.create_wrist_camera,
+        #     WRIST_CAM_RGB_TOPIC,
+        #     WRIST_CAM_RESOLUTION_TOPIC,
+        #     100,
+        # )
+        # self._wrist_camera_publisher.start()
+        
+        # logger.info("Creating wrist camera subscriber.")
+        # self._wrist_camera_subscriber = RGBCameraSubscriber(
+        #     WRIST_CAM_RESOLUTION_TOPIC,
+        #     WRIST_CAM_RGB_TOPIC,
+        # )
         
         
         logger.info("Creating scene camera publisher.")
@@ -67,12 +68,14 @@ class UR3eStation(BaseEnv):
         )
         self._scene_camera_publisher.start()
 
+
         logger.info("Creating scene camera subscriber.")
         self._scene_camera_subscriber = RGBCameraSubscriber(
             SCENE_CAM_RESOLUTION_TOPIC,
             SCENE_CAM_RGB_TOPIC,
         )
 
+        self._wrist_camera_subscriber = self._scene_camera_subscriber
         # wait for first images 
         time.sleep(2)
 
@@ -112,6 +115,7 @@ class UR3eStation(BaseEnv):
         scene_image = self._scene_camera_subscriber.get_rgb_image_as_int()
         robot_state = self.get_robot_pose()
         gripper_state = self.get_gripper_opening()
+        joints = self.robot.get_joint_configuration()
 
         state = np.concatenate((robot_state, gripper_state), axis=0)
         obs_dict = {
@@ -120,6 +124,7 @@ class UR3eStation(BaseEnv):
             "state": state,
             "robot_pose": robot_state,
             "gripper_state": gripper_state,
+            "joints": joints
         }
 
         # add to rerun 
@@ -134,7 +139,7 @@ class UR3eStation(BaseEnv):
         Args:
             action: [x,y,z, rx,ry,rz,gripper]. absolute target pose in robot base frame and absolute gripper width
         """
-
+            
         # convert to SE3 matrix
         position = target_pose[:3]
         rotation = target_pose[3:6]
@@ -207,15 +212,23 @@ def convert_absolute_to_relative_action(current_robot_pose, current_gripper_widt
 if __name__ == '__main__':
     # set cli logging level to debug
 
+    # camera = CameraFactory.create_scene_camera()
+    # print(camera)
+    # print(camera.get_rgb_image().shape)
+    # print(camera.get_rgb_image().shape)
+    # print(camera.get_rgb_image().shape)
+    # print(camera.get_rgb_image().shape)
 
-    relative_pose = np.array([0.1, 0.1, 0.1, 0., 0., 0., 0.1])
-    current_pose = np.array([0.1, 0.0,0,0,0,0])
-    current_gripper = np.array([0.1])
-    abs_pose = convert_relative_to_absolute_action( current_pose, current_gripper, relative_pose)
-    print(abs_pose)
-    rel_pose = convert_absolute_to_relative_action( current_pose, current_gripper, abs_pose)
-    print(rel_pose)
-    assert np.isclose(rel_pose, relative_pose).all(), "Conversion inconsistent"
+    # relative_pose = np.array([0.1, 0.1, 0.1, 0., 0., 0., 0.1])
+    # current_pose = np.array([0.1, 0.0,0,0,0,0])
+    # current_gripper = np.array([0.1])
+    # abs_pose = convert_relative_to_absolute_action( current_pose, current_gripper, relative_pose)
+    # print(abs_pose)
+    # rel_pose = convert_absolute_to_relative_action( current_pose, current_gripper, abs_pose)
+    # print(rel_pose)
+    # assert np.isclose(rel_pose, relative_pose).all(), "Conversion inconsistent"
+
+
     import cv2
 
     env = UR3eStation()
@@ -252,4 +265,4 @@ if __name__ == '__main__':
         env.act(abs_action, time.time() + 0.1)
 
         
-        key = cv2.waitKey(100)
+    #     key = cv2.waitKey(100)
