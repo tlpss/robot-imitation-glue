@@ -91,8 +91,8 @@ class RGBCameraSubscriber(RGBCamera):
         resolution = None
         while resolution is None:
             resolution = self._reader_resolution()
-            logger.info("Did not yet receive resolution message. Sleeping for 100 milliseconds...")
-            time.sleep(0.1)
+            logger.info("Did not yet receive resolution message. Sleeping for 1s...")
+            time.sleep(1)
         self._reader_rgb = SMReader(self._cyclone_dp, rgb_topic,
                                     RGBFrame.with_resolution(resolution.width, resolution.height))
 
