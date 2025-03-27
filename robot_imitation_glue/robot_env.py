@@ -14,6 +14,8 @@ import loguru
 import time 
 from airo_spatial_algebra.se3 import SE3Container
 import numpy as np 
+import rerun as rr
+
 # env consists of 2 realsense cameras and UR3e robot
 
 WRIST_REALSENSE_SERIAL = "925322060348"
@@ -71,7 +73,6 @@ class UR3eStation(BaseEnv):
             SCENE_CAM_RGB_TOPIC,
         )
 
-
         # wait for first images 
         time.sleep(2)
 
@@ -95,7 +96,7 @@ class UR3eStation(BaseEnv):
         return np.concatenate((position, rotation_vector), axis=0)
 
     def get_gripper_opening(self):
-        return self.gripper.get_current_width()
+        return np.array([self.gripper.get_current_width()])
     
 
     def _set_robot_target_pose(self, target_pose):
@@ -139,7 +140,7 @@ class UR3eStation(BaseEnv):
             logger.warning("Action duration is negative, setting it to 0")
             duration = 0
         logger.debug(f"Moving robot to pose {target_pose} with duration {duration}")
-        self.robot.servo_to_tcp_pose(action=target_pose_se3, timestamp=timestamp)
+        self.robot.servo_to_tcp_pose(target_pose_se3, duration)
         # move gripper to target width
 
         gripper_width = np.clip(gripper_width, self.gripper.gripper_specs.min_width, self.gripper.gripper_specs.max_width)
@@ -152,17 +153,20 @@ class UR3eStation(BaseEnv):
 
 
 
-def convert_relative_to_absolute_action(self, current_robot_pose, current_gripper_width, action: np.ndarray):
+def convert_relative_to_absolute_action(current_robot_pose, current_gripper_width, action: np.ndarray):
     """
     Convert a relative action to an absolute action
     Args:
-        action: [x,y,z, rx,ry,rz,gripper]. relative target pose in robot base frame and absolute gripper width
+        action: [x,y,z, rx,ry,rz,gripper]. relative target pose in robot base frame (euler angles) and absolute gripper width
         current_robot_pose: [x,y,z, rx,ry,rz]. current robot pose in robot base frame using Euler angles
         current_gripper_width: current gripper width
-    """
-    current_robot_pose_se3 = SE3Container.from_euler_angles_and_translation(current_robot_pose[:3], current_robot_pose[3:6]).homogeneous_matrix
 
-    relative_robot_pose = SE3Container.from_euler_angles_and_translation(action[:3], action[3:6]).homogeneous_matrix
+    Returns:
+        [x,y,z, rx,ry,rz,gripper]. absolute target pose in robot base frame (rotation vector) and absolute gripper width
+    """
+    current_robot_pose_se3 = SE3Container.from_euler_angles_and_translation(current_robot_pose[3:6], current_robot_pose[0:3]).homogeneous_matrix
+
+    relative_robot_pose = SE3Container.from_euler_angles_and_translation(action[3:6], action[0:3]).homogeneous_matrix
     target_pose_se3 = current_robot_pose_se3 @ relative_robot_pose
     target_orientation_rotvec = SE3Container.from_homogeneous_matrix(target_pose_se3).orientation_as_rotation_vector
     target_position = target_pose_se3[:3, 3]
@@ -173,7 +177,7 @@ def convert_relative_to_absolute_action(self, current_robot_pose, current_grippe
     return np.concatenate((target_pose, target_gripper_width), axis=0)
 
 
-def convert_absolute_to_relative_action(self, current_robot_pose, current_gripper_width, action: np.ndarray):
+def convert_absolute_to_relative_action(current_robot_pose, current_gripper_width, action: np.ndarray):
     """
     Convert an absolute action to a relative action
     Args:
@@ -181,9 +185,9 @@ def convert_absolute_to_relative_action(self, current_robot_pose, current_grippe
         current_robot_pose: [x,y,z, rx,ry,rz]. current robot pose in robot base frame using Euler angles
         current_gripper_width: current gripper width
     """
-    current_robot_pose_se3 = SE3Container.from_euler_angles_and_translation(current_robot_pose[:3], current_robot_pose[3:6]).homogeneous_matrix
+    current_robot_pose_se3 = SE3Container.from_euler_angles_and_translation(current_robot_pose[3:6], current_robot_pose[0:3]).homogeneous_matrix
 
-    target_robot_pose_se3 = SE3Container.from_euler_angles_and_translation(action[:3], action[3:6]).homogeneous_matrix
+    target_robot_pose_se3 = SE3Container.from_euler_angles_and_translation(action[3:6], action[0:3]).homogeneous_matrix
     relative_robot_pose_se3 = np.linalg.inv(current_robot_pose_se3) @ target_robot_pose_se3
     relative_orientation_rotvec = SE3Container.from_homogeneous_matrix(relative_robot_pose_se3).orientation_as_rotation_vector
     relative_position = relative_robot_pose_se3[:3, 3]
@@ -193,6 +197,17 @@ def convert_absolute_to_relative_action(self, current_robot_pose, current_grippe
     return np.concatenate((relative_position, relative_orientation_rotvec, target_gripper_width), axis=0)
 
 if __name__ == '__main__':
+    # set cli logging level to debug
+
+
+    relative_pose = np.array([0.1, 0.1, 0.1, 0., 0., 0., 0.1])
+    current_pose = np.array([0.1, 0.0,0,0,0,0])
+    current_gripper = np.array([0.1])
+    abs_pose = convert_relative_to_absolute_action( current_pose, current_gripper, relative_pose)
+    print(abs_pose)
+    rel_pose = convert_absolute_to_relative_action( current_pose, current_gripper, abs_pose)
+    print(rel_pose)
+    assert np.isclose(rel_pose, relative_pose).all(), "Conversion inconsistent"
     import cv2
 
     env = UR3eStation()
@@ -202,8 +217,9 @@ if __name__ == '__main__':
     cv2.resizeWindow("scene", 640, 480)
 
 
-
     direction = 1
+    z_actions = []
+    z_positions = []
     while True:
         obs = env.get_observations()
         print(time.time())
@@ -213,16 +229,18 @@ if __name__ == '__main__':
 
         current_pose = obs["robot_pose"]
         current_z = current_pose[2]
-        if current_z > 0.3:
-            direction = -1
-        elif current_z < 0.1:
+        print(current_z)
+        if current_z > 0.2:
             direction = 1
-        z_action = 0.01 * direction
-        gripper_action = 0.05 if direction == 1 else 0
-        action = np.array([0, 0, z_action, 0, 0, z_action, gripper_action])
-
-        abs_action = convert_relative_to_absolute_action(env, current_pose, obs["gripper_state"], action)
-        assert convert_absolute_to_relative_action(env, current_pose, obs["gripper_state"], abs_action) == action, "Conversion inconsistent"
+        elif current_z < 0.1:
+            direction = -1
+        z_action = 0.02 * direction
+        gripper_action = 0.005 if direction == 1 else -0.005
+        action = np.array([0, 0, z_action, 0, 0, z_action, 0])
+        logger.debug(f"Taking action {action}")
+        logger.debug(f"Current pose {current_pose}")
+       
+        abs_action = convert_relative_to_absolute_action( current_pose, obs["gripper_state"], action)
         env.act(abs_action, time.time() + 0.1)
 
         
