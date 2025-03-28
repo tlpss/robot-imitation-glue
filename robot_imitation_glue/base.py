@@ -16,11 +16,12 @@ class BaseEnv:
     ACTION_SPEC = None
     PROPRIO_OBS_SPEC = None
 
-    def get_observations():
+    def get_observations(self):
         pass
-    def act(action):
-        pass
-    def reset():
+    def act(self,robot_pose,gripper_pose,timestamp):
+        raise NotImplementedError
+    
+    def reset(self):
         pass
 
     @property
@@ -66,4 +67,8 @@ class BaseDatasetRecorder:
         raise NotImplementedError
 
     def finish_recording(self):
+        pass
+
+    @property
+    def n_recorded_episodes(self):
         pass

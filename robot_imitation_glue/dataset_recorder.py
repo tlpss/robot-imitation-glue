@@ -17,7 +17,10 @@ class DummyDatasetRecorder(BaseDatasetRecorder):
     def save_episode(self):
         print("saving dataset episode")
 
-
+    @property
+    def n_recorded_episodes(self):
+        return 0
+    
 class LeRobotDatasetRecorder(BaseDatasetRecorder):
     DEFAULT_FEATURES = {
         "next.reward": {

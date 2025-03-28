@@ -77,18 +77,15 @@ from typing import Callable
 converter_callable = Callable[dict[str,np.ndarray], np.ndarray]
 
 
-def collect_data(env: BaseEnv, teleop_agent: BaseAgent, dataset_recorder: BaseDatasetRecorder, frequency=10, teleop_to_policy_converter: converter_callable = None, teleop_to_env_converter: converter_callable = None):
+def collect_data(env: BaseEnv, teleop_agent: BaseAgent, dataset_recorder: BaseDatasetRecorder, frequency=10, teleop_to_pose_converter: converter_callable = None, abs_pose_to_policy_action: converter_callable = None):
     assert env.ACTION_SPEC == teleop_agent.ACTION_SPEC
 
     # create cv2 window as GUI.
     cv2.namedWindow("robot_imitation_glue", cv2.WINDOW_NORMAL)
     cv2.resizeWindow("robot_imitation_glue", 640, 480)
 
-
-    # 
-
     
-    # based on provided path, create new dataset or load existing dataset
+    #TODO: based on provided path, create new dataset or load existing dataset
 
     state = State()
     event = Event()
@@ -96,6 +93,10 @@ def collect_data(env: BaseEnv, teleop_agent: BaseAgent, dataset_recorder: BaseDa
 
 
     control_period = 1 / frequency
+
+    target_pose = env.get_robot_pose_se3()
+    target_gripper_state = env.get_gripper_state()
+
     while not state.is_stopped:
         cycle_end_time = time.time() +  control_period
 
@@ -104,7 +105,6 @@ def collect_data(env: BaseEnv, teleop_agent: BaseAgent, dataset_recorder: BaseDa
         after_observation_time = time.time()
         observation_time = after_observation_time - before_observation_time
         # print("observation time: ", observation_time)
-
 
  
         # update & handle state machine events
@@ -144,7 +144,11 @@ def collect_data(env: BaseEnv, teleop_agent: BaseAgent, dataset_recorder: BaseDa
         
 
         # update GUI.
-        #TODO: cv2 window.
+        cv2.imshow("scene_image")
+        # visualize state is_recording, is_paused
+        cv2.text("Recording: " + str(state.is_recording), (10,10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,255), 1)
+        cv2.text("Paused: " + str(state.is_paused), (10,30), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,255), 1)
+        cv2.text(f"num episodes collected: {dataset_recorder.n_recorded_episodes}", (10,50), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,255), 1)
 
 
         # if paused, do not collect teleop or execute action
@@ -155,17 +159,12 @@ def collect_data(env: BaseEnv, teleop_agent: BaseAgent, dataset_recorder: BaseDa
         action = teleop_agent.get_action(observation)
         logger.info(f"Action: {action}")
 
-        if teleop_to_policy_converter:
-            policy_formatted_action = teleop_to_policy_converter(observation, action)
-        else:
-            policy_formatted_action = action
-        
-        if teleop_to_env_converter:
-            env_formatted_action = teleop_to_env_converter(observation, action)
-        else:
-            env_formatted_action = action
+        new_robot_target_se3_pose, new_gripper_target_width = teleop_to_pose_converter(target_pose,target_gripper_state, action)
+            
+        policy_formatted_action = abs_pose_to_policy_action(target_pose,target_gripper_state,new_robot_target_se3_pose,new_gripper_target_width)
 
-        env.act(env_formatted_action,time.time() + control_period)
+
+        env.act(robot_pose=new_robot_target_se3_pose, gripper_pose=new_gripper_target_width,timestamp=time.time() + control_period)
         
         if state.is_recording:
             dataset_recorder.record_step(observation, policy_formatted_action)
@@ -176,8 +175,14 @@ def collect_data(env: BaseEnv, teleop_agent: BaseAgent, dataset_recorder: BaseDa
         else:
             print("cycle time exceeded control period")
 
-    
+        # update the target pose and target gripper state for the next iteration
+        target_pose = new_robot_target_se3_pose
+        target_gripper_state = new_gripper_target_width
 
+        #TODO: we now use 'integration' to get the next target pose instead of using the current pose. 
+        # this is to avoid 'shaking' of the robot, as is done in diffusion policy teleop for example. 
+        # but need to verify that this does not cause mismatch between teleop and policy.
+        # and should also check if the distance between the target and the actual robot does not diverge too much.
 
 
 
@@ -191,33 +196,46 @@ if __name__ =="__main__":
 
     env = UR3eStation()
 
-    def spacemouse_to_ur3e_converter(observation, action):
+    def delta_action_to_abs_se3_converter(robot_pose_se3,gripper_state, action):
         # convert spacemouse action to ur3e action
-        robot_pose = observation["robot_pose"]
-        gripper_state = observation["gripper_state"]
+        # we take the action to consist of a delta position, delta rotation and delta gripper width.
+        # the delta rotation is interpreted as expressed in a frame with the same orientation as the base frame but with the origin at the EEF.
+        # in this way, when rotating the spacemouse, the robot eef will not move around, while at the same time the axes of orientation
+        # do not depend on the current orientation of the EEF.
+
+        # the delta position is intepreted in the world frame and also applied on the EEF frame.
         
-        twist_trans = action[:3]
-        twist_rot = action[3:6]
+        delta_pos = action[:3]
+        delta_rot = action[3:6]
         gripper_action = action[6]
 
-        robot_trans = robot_pose[:3]
-        robot_euler = robot_pose[3:6]
+        robot_trans = robot_pose_se3[:3,3]
+        robot_SO3 = robot_pose_se3[:3,:3]
 
-        new_robot_trans = robot_trans + twist_trans 
-        new_robot_rotvec = (R.from_euler('xyz',twist_rot) * R.from_euler('xyz', robot_euler)).as_rotvec() 
+        new_robot_trans = robot_trans + delta_pos 
+        # rotation is now interpreted as euler and not as rotvec
+        # similar to Diffusion Policy. 
+        # however, rotvec seems more principled (related to twist)
+        new_robot_SO3 = R.from_euler('xyz',delta_rot).as_matrix() * robot_SO3
 
+        new_robot_SE3 = np.eye(4)
+        new_robot_SE3[:3,:3] = new_robot_SO3
+        new_robot_SE3[:3,3] = new_robot_trans
 
         new_gripper_state = gripper_state + gripper_action
-        return np.concatenate([new_robot_trans, new_robot_rotvec, new_gripper_state])
+        return new_robot_SE3, new_gripper_state
 
 
-    def spacemouse_to_relative_policy_converter(observation, action):
-        abs = spacemouse_to_ur3e_converter(observation, action)
-        current_robot_pose = observation["robot_pose"]
-        current_gripper_state = observation["gripper_state"]
-        return convert_absolute_to_relative_action(current_robot_pose, current_gripper_state, abs)
+    def abs_se3_to_relative_policy_action_converter(robot_pose,gripper_pose,abs_se3_action,gripper_action):
+        relative_se3 = np.linalg.inv(robot_pose) @ abs_se3_action
+
+        relative_pos = relative_se3[:3,3]
+        relative_euler = R.from_matrix(relative_se3[:3,:3]).as_euler('xyz')
+        relative_gripper = gripper_action - gripper_pose
+
+        return np.concatenate((relative_pos, relative_euler, relative_gripper), axis=0)
     
     agent = SpaceMouseAgent()
     dataset_recorder = DummyDatasetRecorder()
 
-    collect_data(env, agent, dataset_recorder,10, spacemouse_to_relative_policy_converter, spacemouse_to_ur3e_converter)
+    collect_data(env, agent, dataset_recorder,10, delta_action_to_abs_se3_converter, abs_se3_to_relative_policy_action_converter)

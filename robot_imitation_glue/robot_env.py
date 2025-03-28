@@ -92,7 +92,7 @@ class UR3eStation(BaseEnv):
         # rr.init("ur3e-station",spawn=True)
 
 
-    def get_robot_pose(self):
+    def get_robot_pose_euler(self):
         """ 
         pose as [x,y,z,rx,ry,rz] in robot base frame using Euler angles
         """
@@ -100,7 +100,14 @@ class UR3eStation(BaseEnv):
         rotation_vector = SE3Container.from_homogeneous_matrix(hom_pose).orientation_as_euler_angles
         position = hom_pose[:3, 3]
         return np.concatenate((position, rotation_vector), axis=0)
-
+    
+    
+    def get_robot_pose_se3(self):
+        """ 
+        pose as 4x4 homogeneous transformation matrix in robot base frame
+        """
+        return self.robot.get_tcp_pose()
+    
     def get_gripper_opening(self):
         return np.array([self.gripper.get_current_width()])
     
@@ -113,11 +120,12 @@ class UR3eStation(BaseEnv):
 
         wrist_image = self._wrist_camera_subscriber.get_rgb_image_as_int()
         scene_image = self._scene_camera_subscriber.get_rgb_image_as_int()
-        robot_state = self.get_robot_pose()
+        robot_state = self.get_robot_pose_euler()
         gripper_state = self.get_gripper_opening()
         joints = self.robot.get_joint_configuration()
 
         state = np.concatenate((robot_state, gripper_state), axis=0)
+        #TODO: resize images (but still include the original?)
         obs_dict = {
             "wrist_image": wrist_image,
             "scene_image": scene_image,
@@ -133,30 +141,20 @@ class UR3eStation(BaseEnv):
 
         return obs_dict
 
-    def act(self,target_pose: np.ndarray, timestamp: float):
-        """
+    def act(self, robot_pose_se3, gripper_pose, timestamp):
 
-        Args:
-            action: [x,y,z, rx,ry,rz,gripper]. absolute target pose in robot base frame and absolute gripper width
-        """
-            
-        # convert to SE3 matrix
-        position = target_pose[:3]
-        rotation = target_pose[3:6]
-        gripper_width = target_pose[6]
-        target_pose_se3 = SE3Container.from_rotation_vector_and_translation(rotation, position).homogeneous_matrix
-        
+
         # move robot to target pose
         current_time = time.time()
         duration = timestamp - current_time
         if duration < 0:
             logger.warning("Action duration is negative, setting it to 0")
             duration = 0
-        logger.debug(f"Moving robot to pose {target_pose} with duration {duration}")
-        self.robot.servo_to_tcp_pose(target_pose_se3, duration)
-        # move gripper to target width
+        logger.debug(f"Moving robot to pose {robot_pose_se3} with duration {duration}")
+        self.robot.servo_to_tcp_pose(robot_pose_se3, duration)
 
-        gripper_width = np.clip(gripper_width, self.gripper.gripper_specs.min_width, self.gripper.gripper_specs.max_width)
+        # move gripper to target width
+        gripper_width = np.clip(gripper_pose, self.gripper.gripper_specs.min_width, self.gripper.gripper_specs.max_width)
         self.gripper._set_target_width(gripper_width)
 
         # do not wait, handling timings is the responsibility of the caller
@@ -166,68 +164,33 @@ class UR3eStation(BaseEnv):
 
 
 
-def convert_relative_to_absolute_action(current_robot_pose, current_gripper_width, action: np.ndarray):
-    """
-    Convert a relative action to an absolute action
-    Args:
-        action: [x,y,z, rx,ry,rz,gripper]. relative target pose in robot base frame (euler angles) and absolute gripper width
-        current_robot_pose: [x,y,z, rx,ry,rz]. current robot pose in robot base frame using Euler angles
-        current_gripper_width: current gripper width
 
-    Returns:
-        [x,y,z, rx,ry,rz,gripper]. absolute target pose in robot base frame (rotation vector) and absolute gripper width
-    """
-    current_robot_pose_se3 = SE3Container.from_euler_angles_and_translation(current_robot_pose[3:6], current_robot_pose[0:3]).homogeneous_matrix
-
-    relative_robot_pose = SE3Container.from_euler_angles_and_translation(action[3:6], action[0:3]).homogeneous_matrix
-    target_pose_se3 = current_robot_pose_se3 @ relative_robot_pose
-    target_orientation_rotvec = SE3Container.from_homogeneous_matrix(target_pose_se3).orientation_as_rotation_vector
-    target_position = target_pose_se3[:3, 3]
-
-    target_pose = np.concatenate((target_position, target_orientation_rotvec), axis=0)
-    target_gripper_width = action[6] + current_gripper_width
-
-    return np.concatenate((target_pose, target_gripper_width), axis=0)
-
-
-def convert_absolute_to_relative_action(current_robot_pose, current_gripper_width, action: np.ndarray):
-    """
-    Convert an absolute action to a relative action
-    Args:
-        action: [x,y,z, rx,ry,rz,gripper]. absolute target pose in robot base frame and absolute gripper width
-        current_robot_pose: [x,y,z, rx,ry,rz]. current robot pose in robot base frame using Euler angles
-        current_gripper_width: current gripper width
-    """
-    current_robot_pose_se3 = SE3Container.from_euler_angles_and_translation(current_robot_pose[3:6], current_robot_pose[0:3]).homogeneous_matrix
-
-    target_robot_pose_se3 = SE3Container.from_euler_angles_and_translation(action[3:6], action[0:3]).homogeneous_matrix
-    relative_robot_pose_se3 = np.linalg.inv(current_robot_pose_se3) @ target_robot_pose_se3
-    relative_orientation_rotvec = SE3Container.from_homogeneous_matrix(relative_robot_pose_se3).orientation_as_rotation_vector
-    relative_position = relative_robot_pose_se3[:3, 3]
-
-    target_gripper_width = action[6] - current_gripper_width
-
-    return np.concatenate((relative_position, relative_orientation_rotvec, target_gripper_width), axis=0)
 
 if __name__ == '__main__':
     # set cli logging level to debug
 
-    # camera = CameraFactory.create_scene_camera()
-    # print(camera)
-    # print(camera.get_rgb_image().shape)
-    # print(camera.get_rgb_image().shape)
-    # print(camera.get_rgb_image().shape)
-    # print(camera.get_rgb_image().shape)
+    def convert_relative_to_absolute_action(current_robot_pose, current_gripper_width, action: np.ndarray):
+        """
+        Convert a relative action to an absolute action
+        Args:
+            action: [x,y,z, rx,ry,rz,gripper]. relative target pose in robot base frame (euler angles) and absolute gripper width
+            current_robot_pose: [x,y,z, rx,ry,rz]. current robot pose in robot base frame using Euler angles
+            current_gripper_width: current gripper width
 
-    # relative_pose = np.array([0.1, 0.1, 0.1, 0., 0., 0., 0.1])
-    # current_pose = np.array([0.1, 0.0,0,0,0,0])
-    # current_gripper = np.array([0.1])
-    # abs_pose = convert_relative_to_absolute_action( current_pose, current_gripper, relative_pose)
-    # print(abs_pose)
-    # rel_pose = convert_absolute_to_relative_action( current_pose, current_gripper, abs_pose)
-    # print(rel_pose)
-    # assert np.isclose(rel_pose, relative_pose).all(), "Conversion inconsistent"
+        Returns:
+            [x,y,z, rx,ry,rz,gripper]. absolute target pose in robot base frame (rotation vector) and absolute gripper width
+        """
+        current_robot_pose_se3 = SE3Container.from_euler_angles_and_translation(current_robot_pose[3:6], current_robot_pose[0:3]).homogeneous_matrix
 
+        relative_robot_pose = SE3Container.from_euler_angles_and_translation(action[3:6], action[0:3]).homogeneous_matrix
+        target_pose_se3 = current_robot_pose_se3 @ relative_robot_pose
+        target_orientation_rotvec = SE3Container.from_homogeneous_matrix(target_pose_se3).orientation_as_rotation_vector
+        target_position = target_pose_se3[:3, 3]
+
+        target_pose = np.concatenate((target_position, target_orientation_rotvec), axis=0)
+        target_gripper_width = action[6] + current_gripper_width
+
+        return np.concatenate((target_pose, target_gripper_width), axis=0)
 
     import cv2
 
@@ -263,6 +226,4 @@ if __name__ == '__main__':
        
         abs_action = convert_relative_to_absolute_action( current_pose, obs["gripper_state"], action)
         env.act(abs_action, time.time() + 0.1)
-
-        
-    #     key = cv2.waitKey(100)
+        key = cv2.waitKey(100)

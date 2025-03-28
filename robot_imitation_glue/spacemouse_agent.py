@@ -11,6 +11,10 @@ import loguru
 
 logger = loguru.logger
 class SpaceMouseAgent(BaseAgent):
+    """ spacemouse teleop. 
+    provides a delta to the current pose of the robot and gripper. 
+    [x,y,z,rx,ry,rz,gripper]
+    """
     ACTION_SPEC = None
 
     def __init__(self, buffer_size=10):  # Add buffer_size as a parameter

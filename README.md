@@ -1,5 +1,9 @@
 # robot-imitation-glue
 
+collect robot demonstrations, evaluate trained policies.
+
+
+
 
 ## Local Development
 
