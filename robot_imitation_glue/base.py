@@ -1,15 +1,11 @@
-
-
 class ActionSpec:
     representation = None
     reference_frame = None
 
 
-
 class ProprioObservationSpec:
     representation = None
     reference_frame = None
-
 
 
 class BaseEnv:
@@ -18,21 +14,22 @@ class BaseEnv:
 
     def get_observations(self):
         pass
-    def act(self,robot_pose,gripper_pose,timestamp):
+
+    def act(self, robot_pose, gripper_pose, timestamp):
         raise NotImplementedError
-    
+
     def reset(self):
         pass
 
     @property
     def action_spec(self):
         return self.ACTION_SPEC
-    
+
     @property
     def proprio_obs_spec(self):
         return self.PROPRIO_OBS_SPEC
-    
- 
+
+
 class BaseAgent:
     ACTION_SPEC = None
 
@@ -44,7 +41,6 @@ class BaseAgent:
         return self.ACTION_SPEC
 
 
-
 # define different action types
 # ABS_EEF, REL_EEF, ABS_JOINT, REL_JOINT
 # relative to what?
@@ -52,6 +48,7 @@ class BaseAgent:
 # define different PROPRIO_OBS_TYPES
 # how are orientations represented?
 # what are they relative to?
+
 
 class BaseDatasetRecorder:
     def __init__(self):

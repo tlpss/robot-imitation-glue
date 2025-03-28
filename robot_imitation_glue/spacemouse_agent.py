@@ -1,20 +1,21 @@
-import pyspacemouse
-from scipy.spatial.transform import Rotation as R
 import threading
 import time
-import queue
 from collections import deque
+
+import loguru
+import pyspacemouse
 
 from robot_imitation_glue.base import BaseAgent
 
-import loguru
-
 logger = loguru.logger
+
+
 class SpaceMouseAgent(BaseAgent):
-    """ spacemouse teleop. 
-    provides a delta to the current pose of the robot and gripper. 
+    """spacemouse teleop.
+    provides a delta to the current pose of the robot and gripper.
     [x,y,z,rx,ry,rz,gripper]
     """
+
     ACTION_SPEC = None
 
     def __init__(self, buffer_size=10):  # Add buffer_size as a parameter
@@ -23,7 +24,7 @@ class SpaceMouseAgent(BaseAgent):
 
         # separate thread needed for continuous reading of SpaceMouse
         # cf. https://github.com/wuphilipp/gello_software/blob/main/gello/agents/spacemouse_agent.py
-        # 
+        #
         self.thread = threading.Thread(target=self._spacemouse_thread)
         self.thread.daemon = True
         self.thread.start()
@@ -34,7 +35,7 @@ class SpaceMouseAgent(BaseAgent):
             print("SpaceMouse connected successfully!")
         except Exception as e:
             raise ValueError(f"Could not open SpaceMouse: {e}")
-        
+
         while self.running:
             try:
                 state = pyspacemouse.read()
@@ -47,21 +48,20 @@ class SpaceMouseAgent(BaseAgent):
     def get_action(self, observation=None):
         del observation
 
-        if not self.state_buffer: # check if buffer is empty.
+        if not self.state_buffer:  # check if buffer is empty.
             logger.warning("SpaceMouse buffer is empty.")
-            return [0,0,0,0,0,0,0]
+            return [0, 0, 0, 0, 0, 0, 0]
 
         state = self.state_buffer.pop()
-        
 
         # do a conversion from the spacemouse coordinate frame to a different coordinate frame that makes teleop more intuitive
-        # for the orientations. each twist on the axis corresponds now to how you want the robot to twist as well. 
+        # for the orientations. each twist on the axis corresponds now to how you want the robot to twist as well.
         roll, pitch, yaw = -state.pitch, state.roll, -state.yaw
         rot = [roll, pitch, yaw]
 
         pos = [state.x, state.y, state.z]
 
-        #TODO: make these configurable
+        # TODO: make these configurable
         deadzone_value = 0.1
         rescale_pos = 0.05
         rescale_rot = 0.05
@@ -91,9 +91,10 @@ class SpaceMouseAgent(BaseAgent):
         if self.thread.is_alive():
             self.thread.join()
 
+
 if __name__ == "__main__":
     try:
-        agent = SpaceMouseAgent(buffer_size=5) # set buffer size.
+        agent = SpaceMouseAgent(buffer_size=5)  # set buffer size.
         while True:
             action = agent.get_action()
             print(f"Action: {action}")
@@ -103,5 +104,5 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         print("Program terminated by user.")
     finally:
-        if 'agent' in locals():
+        if "agent" in locals():
             agent.close()

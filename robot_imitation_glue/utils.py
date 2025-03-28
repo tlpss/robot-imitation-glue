@@ -1,7 +1,7 @@
 import time
 
 
-def precise_sleep(dt: float, slack_time: float=0.001, time_func=time.time):
+def precise_sleep(dt: float, slack_time: float = 0.001, time_func=time.time):
     """
     Use hybrid of time.sleep and spinning to minimize jitter.
     Sleep dt - slack_time seconds first, then spin for the rest.
@@ -16,7 +16,8 @@ def precise_sleep(dt: float, slack_time: float=0.001, time_func=time.time):
         pass
     return
 
-def precise_wait(t_end: float, slack_time: float=0.001, time_func=time.time):
+
+def precise_wait(t_end: float, slack_time: float = 0.001, time_func=time.time):
     """_summary_
 
     taken from: https://github.com/tlpss/diffusion_policy/blob/main/diffusion_policy/common/precise_sleep.py#L16

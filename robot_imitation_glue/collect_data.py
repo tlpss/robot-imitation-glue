@@ -1,12 +1,14 @@
+from robot_imitation_glue.base import BaseAgent, BaseDatasetRecorder, BaseEnv
 from robot_imitation_glue.utils import precise_wait
-from robot_imitation_glue.base import BaseEnv, BaseDatasetRecorder, BaseAgent
-env = None 
-agent = None 
+
+env = None
+agent = None
+
+import time
 
 import cv2
-import numpy as np
-import time 
 import loguru
+import numpy as np
 
 logger = loguru.logger
 
@@ -15,6 +17,7 @@ class State:
     is_recording = False
     is_stopped = False
     is_paused = False
+
 
 class Event:
     start_recording = False
@@ -29,7 +32,7 @@ class Event:
         for attr in self.__dict__:
             setattr(self, attr, False)
 
-    
+
 def init_keyboard_listener(event: Event, state: State):
     # Allow to exit early while recording an episode or resetting the environment,
     # by tapping the right arrow key '->'. This might require a sudo permission
@@ -50,16 +53,15 @@ def init_keyboard_listener(event: Event, state: State):
             elif key == keyboard.Key.enter and not state.is_recording and not state.is_paused:
                 # pause the episode
                 event.pause = True
-            
+
             elif key == keyboard.Key.enter and state.is_paused:
                 # resume the episode
                 event.resume = True
-            
 
-            elif hasattr(key,'char') and key.char == 'q':
+            elif hasattr(key, "char") and key.char == "q":
                 event.quit = True
 
-            elif hasattr(key,'char') and key.char == 'd' and not state.is_recording:
+            elif hasattr(key, "char") and key.char == "d" and not state.is_recording:
                 # delete the last episode
                 event.delete_last = True
         except Exception as e:
@@ -74,23 +76,28 @@ def init_keyboard_listener(event: Event, state: State):
 # create type for callable that takes obs and returns action
 from typing import Callable
 
-converter_callable = Callable[dict[str,np.ndarray], np.ndarray]
+converter_callable = Callable[dict[str, np.ndarray], np.ndarray]
 
 
-def collect_data(env: BaseEnv, teleop_agent: BaseAgent, dataset_recorder: BaseDatasetRecorder, frequency=10, teleop_to_pose_converter: converter_callable = None, abs_pose_to_policy_action: converter_callable = None):
+def collect_data(  # noqa: C901
+    env: BaseEnv,
+    teleop_agent: BaseAgent,
+    dataset_recorder: BaseDatasetRecorder,
+    frequency=10,
+    teleop_to_pose_converter: converter_callable = None,
+    abs_pose_to_policy_action: converter_callable = None,
+):
     assert env.ACTION_SPEC == teleop_agent.ACTION_SPEC
 
     # create cv2 window as GUI.
     cv2.namedWindow("robot_imitation_glue", cv2.WINDOW_NORMAL)
     cv2.resizeWindow("robot_imitation_glue", 640, 480)
 
-    
-    #TODO: based on provided path, create new dataset or load existing dataset
+    # TODO: based on provided path, create new dataset or load existing dataset
 
     state = State()
     event = Event()
     listener = init_keyboard_listener(event, state)
-
 
     control_period = 1 / frequency
 
@@ -98,15 +105,14 @@ def collect_data(env: BaseEnv, teleop_agent: BaseAgent, dataset_recorder: BaseDa
     target_gripper_state = env.get_gripper_state()
 
     while not state.is_stopped:
-        cycle_end_time = time.time() +  control_period
+        cycle_end_time = time.time() + control_period
 
         before_observation_time = time.time()
         observation = env.get_observations()
         after_observation_time = time.time()
-        observation_time = after_observation_time - before_observation_time
+        after_observation_time - before_observation_time
         # print("observation time: ", observation_time)
 
- 
         # update & handle state machine events
         if not state.is_recording and event.start_recording:
             state.is_recording = True
@@ -118,16 +124,16 @@ def collect_data(env: BaseEnv, teleop_agent: BaseAgent, dataset_recorder: BaseDa
             print("stop recording")
             # save episode
             dataset_recorder.save_episode()
-            #TODO: allow for textual description of the episode?
+            # TODO: allow for textual description of the episode?
 
         elif event.delete_last and not state.is_recording:
             print("delete last episode")
             # delete last episode
-        
+
         elif event.pause and not state.is_recording:
             state.is_paused = True
             print("pause teleop")
-        
+
         elif event.resume and state.is_paused:
             state.is_paused = False
             print("resume teleop")
@@ -141,15 +147,20 @@ def collect_data(env: BaseEnv, teleop_agent: BaseAgent, dataset_recorder: BaseDa
 
         # clear all events
         event.clear()
-        
 
         # update GUI.
         cv2.imshow("scene_image")
         # visualize state is_recording, is_paused
-        cv2.text("Recording: " + str(state.is_recording), (10,10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,255), 1)
-        cv2.text("Paused: " + str(state.is_paused), (10,30), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,255), 1)
-        cv2.text(f"num episodes collected: {dataset_recorder.n_recorded_episodes}", (10,50), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,255), 1)
-
+        cv2.text("Recording: " + str(state.is_recording), (10, 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+        cv2.text("Paused: " + str(state.is_paused), (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+        cv2.text(
+            f"num episodes collected: {dataset_recorder.n_recorded_episodes}",
+            (10, 50),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.5,
+            (255, 255, 255),
+            1,
+        )
 
         # if paused, do not collect teleop or execute action
         if state.is_paused:
@@ -159,13 +170,20 @@ def collect_data(env: BaseEnv, teleop_agent: BaseAgent, dataset_recorder: BaseDa
         action = teleop_agent.get_action(observation)
         logger.info(f"Action: {action}")
 
-        new_robot_target_se3_pose, new_gripper_target_width = teleop_to_pose_converter(target_pose,target_gripper_state, action)
-            
-        policy_formatted_action = abs_pose_to_policy_action(target_pose,target_gripper_state,new_robot_target_se3_pose,new_gripper_target_width)
+        new_robot_target_se3_pose, new_gripper_target_width = teleop_to_pose_converter(
+            target_pose, target_gripper_state, action
+        )
 
+        policy_formatted_action = abs_pose_to_policy_action(
+            target_pose, target_gripper_state, new_robot_target_se3_pose, new_gripper_target_width
+        )
 
-        env.act(robot_pose=new_robot_target_se3_pose, gripper_pose=new_gripper_target_width,timestamp=time.time() + control_period)
-        
+        env.act(
+            robot_pose=new_robot_target_se3_pose,
+            gripper_pose=new_gripper_target_width,
+            timestamp=time.time() + control_period,
+        )
+
         if state.is_recording:
             dataset_recorder.record_step(observation, policy_formatted_action)
 
@@ -179,24 +197,23 @@ def collect_data(env: BaseEnv, teleop_agent: BaseAgent, dataset_recorder: BaseDa
         target_pose = new_robot_target_se3_pose
         target_gripper_state = new_gripper_target_width
 
-        #TODO: we now use 'integration' to get the next target pose instead of using the current pose. 
-        # this is to avoid 'shaking' of the robot, as is done in diffusion policy teleop for example. 
+        # TODO: we now use 'integration' to get the next target pose instead of using the current pose.
+        # this is to avoid 'shaking' of the robot, as is done in diffusion policy teleop for example.
         # but need to verify that this does not cause mismatch between teleop and policy.
         # and should also check if the distance between the target and the actual robot does not diverge too much.
 
 
-
-if __name__ =="__main__":
+if __name__ == "__main__":
     # create dummy env, agent and recorder to test flow.
+    from scipy.spatial.transform import Rotation as R
+
+    from robot_imitation_glue.dataset_recorder import DummyDatasetRecorder
     from robot_imitation_glue.robot_env import UR3eStation
     from robot_imitation_glue.spacemouse_agent import SpaceMouseAgent
-    from robot_imitation_glue.dataset_recorder import DummyDatasetRecorder
-    from robot_imitation_glue.robot_env import convert_absolute_to_relative_action
-    from scipy.spatial.transform import Rotation as R
 
     env = UR3eStation()
 
-    def delta_action_to_abs_se3_converter(robot_pose_se3,gripper_state, action):
+    def delta_action_to_abs_se3_converter(robot_pose_se3, gripper_state, action):
         # convert spacemouse action to ur3e action
         # we take the action to consist of a delta position, delta rotation and delta gripper width.
         # the delta rotation is interpreted as expressed in a frame with the same orientation as the base frame but with the origin at the EEF.
@@ -204,38 +221,44 @@ if __name__ =="__main__":
         # do not depend on the current orientation of the EEF.
 
         # the delta position is intepreted in the world frame and also applied on the EEF frame.
-        
+
         delta_pos = action[:3]
         delta_rot = action[3:6]
         gripper_action = action[6]
 
-        robot_trans = robot_pose_se3[:3,3]
-        robot_SO3 = robot_pose_se3[:3,:3]
+        robot_trans = robot_pose_se3[:3, 3]
+        robot_SO3 = robot_pose_se3[:3, :3]
 
-        new_robot_trans = robot_trans + delta_pos 
+        new_robot_trans = robot_trans + delta_pos
         # rotation is now interpreted as euler and not as rotvec
-        # similar to Diffusion Policy. 
+        # similar to Diffusion Policy.
         # however, rotvec seems more principled (related to twist)
-        new_robot_SO3 = R.from_euler('xyz',delta_rot).as_matrix() * robot_SO3
+        new_robot_SO3 = R.from_euler("xyz", delta_rot).as_matrix() * robot_SO3
 
         new_robot_SE3 = np.eye(4)
-        new_robot_SE3[:3,:3] = new_robot_SO3
-        new_robot_SE3[:3,3] = new_robot_trans
+        new_robot_SE3[:3, :3] = new_robot_SO3
+        new_robot_SE3[:3, 3] = new_robot_trans
 
         new_gripper_state = gripper_state + gripper_action
         return new_robot_SE3, new_gripper_state
 
-
-    def abs_se3_to_relative_policy_action_converter(robot_pose,gripper_pose,abs_se3_action,gripper_action):
+    def abs_se3_to_relative_policy_action_converter(robot_pose, gripper_pose, abs_se3_action, gripper_action):
         relative_se3 = np.linalg.inv(robot_pose) @ abs_se3_action
 
-        relative_pos = relative_se3[:3,3]
-        relative_euler = R.from_matrix(relative_se3[:3,:3]).as_euler('xyz')
+        relative_pos = relative_se3[:3, 3]
+        relative_euler = R.from_matrix(relative_se3[:3, :3]).as_euler("xyz")
         relative_gripper = gripper_action - gripper_pose
 
         return np.concatenate((relative_pos, relative_euler, relative_gripper), axis=0)
-    
+
     agent = SpaceMouseAgent()
     dataset_recorder = DummyDatasetRecorder()
 
-    collect_data(env, agent, dataset_recorder,10, delta_action_to_abs_se3_converter, abs_se3_to_relative_policy_action_converter)
+    collect_data(
+        env,
+        agent,
+        dataset_recorder,
+        10,
+        delta_action_to_abs_se3_converter,
+        abs_se3_to_relative_policy_action_converter,
+    )

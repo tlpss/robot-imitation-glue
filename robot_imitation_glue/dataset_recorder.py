@@ -1,7 +1,8 @@
-
 from pathlib import Path
+
+import numpy as np
 import torch
-import numpy as np 
+
 from robot_imitation_glue.base import BaseDatasetRecorder
 
 
@@ -20,7 +21,8 @@ class DummyDatasetRecorder(BaseDatasetRecorder):
     @property
     def n_recorded_episodes(self):
         return 0
-    
+
+
 class LeRobotDatasetRecorder(BaseDatasetRecorder):
     DEFAULT_FEATURES = {
         "next.reward": {
@@ -45,7 +47,15 @@ class LeRobotDatasetRecorder(BaseDatasetRecorder):
         },
     }
 
-    def __init__(self, example_obs_dict: dict, example_action: np.array, root_dataset_dir: Path, dataset_name: str, fps: int, use_videos=True):
+    def __init__(
+        self,
+        example_obs_dict: dict,
+        example_action: np.array,
+        root_dataset_dir: Path,
+        dataset_name: str,
+        fps: int,
+        use_videos=True,
+    ):
         from lerobot.common.datasets.lerobot_dataset import LeRobotDataset
 
         self.root_dataset_dir = root_dataset_dir
@@ -54,7 +64,6 @@ class LeRobotDatasetRecorder(BaseDatasetRecorder):
 
         self._n_recorded_episodes = 0
         self.key_mapping_dict = {}
-
 
         self.image_keys = []
         self.state_keys = []
@@ -75,17 +84,17 @@ class LeRobotDatasetRecorder(BaseDatasetRecorder):
             else:
                 raise ValueError(f"Unsupported shape for feature {key}: {shape}")
 
-            if  len(shape) == 3:
+            if len(shape) == 3:
                 self.image_keys.append(key)
             else:
                 self.state_keys.append(key)
-        
+
         # add action to features
         features["action"] = {"dtype": "float32", "shape": example_action.shape, "names": None}
         print(f"Features: {features}")
 
-        #TODO: if dataset exists, load it to extend it.
-        
+        # TODO: if dataset exists, load it to extend it.
+
         self.lerobot_dataset = LeRobotDataset.create(
             repo_id=dataset_name,
             fps=self.fps,
@@ -105,7 +114,7 @@ class LeRobotDatasetRecorder(BaseDatasetRecorder):
             "next.reward": torch.tensor([0.0]),
             "next.success": torch.tensor([False]),
             "seed": torch.tensor([0]),  # TODO: store the seed
-            "task":""
+            "task": "",
         }
         for key in self.image_keys:
             lerobot_key = self.key_mapping_dict.get(key, key)
@@ -125,7 +134,7 @@ class LeRobotDatasetRecorder(BaseDatasetRecorder):
     @property
     def n_recorded_episodes(self):
         return self._n_recorded_episodes
-    
+
 
 if __name__ == "__main__":
 
@@ -133,13 +142,13 @@ if __name__ == "__main__":
         "robot_pose": np.array([0.1, 0.2, 0.3], dtype=np.float32),
         "image": np.random.rand(3, 64, 64).astype(np.float32),
         "image2": np.random.rand(3, 128, 64).astype(np.float32),
-        "gripper_state": np.array([0.1],dtype=np.float32),
-
+        "gripper_state": np.array([0.1], dtype=np.float32),
     }
 
-    example_action = np.array([0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7],dtype=np.float32)
+    example_action = np.array([0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7], dtype=np.float32)
 
-    import os 
+    import os
+
     # remove entire dataset directory
     os.system("rm -rf datasets")
     dataset_recorder = LeRobotDatasetRecorder(
@@ -153,7 +162,7 @@ if __name__ == "__main__":
 
     for j in range(3):
         dataset_recorder.start_episode()
-        for i in range(10-j):
+        for i in range(10 - j):
             dataset_recorder.record_step(example_obs, example_action)
         dataset_recorder.save_episode()
 
@@ -161,8 +170,7 @@ if __name__ == "__main__":
     print(f"Recorded {dataset_recorder.n_recorded_episodes} episodes.")
 
     from lerobot.common.datasets.lerobot_dataset import LeRobotDataset
-    dataset = LeRobotDataset(repo_id="test_dataset", root=Path("datasets"),episodes=[0,1])
+
+    dataset = LeRobotDataset(repo_id="test_dataset", root=Path("datasets"), episodes=[0, 1])
     print(f"Loaded {len(dataset)} steps.")
     print(dataset.episode_data_index)
-
-
