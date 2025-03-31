@@ -3,6 +3,7 @@
 This requires you to install the airo-camera-toolkit, which you can do by following the instructions here:
 https://github.com/airo-ugent/airo-mono
 """
+
 import time
 from dataclasses import dataclass
 from typing import Optional
