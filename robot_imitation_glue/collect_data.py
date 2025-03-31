@@ -102,7 +102,7 @@ def collect_data(  # noqa: C901
     control_period = 1 / frequency
 
     target_pose = env.get_robot_pose_se3()
-    target_gripper_state = env.get_gripper_state()
+    target_gripper_state = env.get_gripper_opening()
 
     while not state.is_stopped:
         cycle_end_time = time.time() + control_period
@@ -149,11 +149,15 @@ def collect_data(  # noqa: C901
         event.clear()
 
         # update GUI.
-        cv2.imshow("scene_image")
+        vis_img = observation["scene_image"].copy()
+        cv2.imshow("robot_imitation_glue", vis_img)
         # visualize state is_recording, is_paused
-        cv2.text("Recording: " + str(state.is_recording), (10, 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
-        cv2.text("Paused: " + str(state.is_paused), (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
-        cv2.text(
+        cv2.putText(
+            vis_img, f"recording = {state.is_recording}", (10, 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1
+        )
+        cv2.putText(vis_img, f"Paused: {state.is_paused}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+        cv2.putText(
+            vis_img,
             f"num episodes collected: {dataset_recorder.n_recorded_episodes}",
             (10, 50),
             cv2.FONT_HERSHEY_SIMPLEX,
@@ -179,7 +183,7 @@ def collect_data(  # noqa: C901
         )
 
         env.act(
-            robot_pose=new_robot_target_se3_pose,
+            robot_pose_se3=new_robot_target_se3_pose,
             gripper_pose=new_gripper_target_width,
             timestamp=time.time() + control_period,
         )
@@ -233,13 +237,15 @@ if __name__ == "__main__":
         # rotation is now interpreted as euler and not as rotvec
         # similar to Diffusion Policy.
         # however, rotvec seems more principled (related to twist)
-        new_robot_SO3 = R.from_euler("xyz", delta_rot).as_matrix() * robot_SO3
+        new_robot_SO3 = R.from_euler("xyz", delta_rot).as_matrix() @ robot_SO3
 
         new_robot_SE3 = np.eye(4)
         new_robot_SE3[:3, :3] = new_robot_SO3
         new_robot_SE3[:3, 3] = new_robot_trans
 
         new_gripper_state = gripper_state + gripper_action
+        new_gripper_state = np.clip(new_gripper_state, 0, 0.085)
+
         return new_robot_SE3, new_gripper_state
 
     def abs_se3_to_relative_policy_action_converter(robot_pose, gripper_pose, abs_se3_action, gripper_action):

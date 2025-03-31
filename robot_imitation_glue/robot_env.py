@@ -7,12 +7,13 @@ Proprioception as robot pose (euler angles) in robot base frame and gripper widt
 
 import time
 
+import cv2
 import loguru
 import numpy as np
 from airo_camera_toolkit.cameras.realsense.realsense import Realsense
 from airo_robots.grippers.hardware.robotiq_2f85_urcap import Robotiq2F85
 from airo_robots.manipulators.hardware.ur_rtde import URrtde
-from airo_spatial_algebra.se3 import SE3Container
+from airo_spatial_algebra.se3 import SE3Container, normalize_so3_matrix
 
 from robot_imitation_glue.base import BaseEnv
 from robot_imitation_glue.ipc_camera import RGBCameraPublisher, RGBCameraSubscriber, initialize_ipc
@@ -48,20 +49,20 @@ class UR3eStation(BaseEnv):
         # set up cameras
         initialize_ipc()
 
-        # logger.info("Creating wrist camera publisher.")
-        # self._wrist_camera_publisher = RGBCameraPublisher(
-        #     CameraFactory.create_wrist_camera,
-        #     WRIST_CAM_RGB_TOPIC,
-        #     WRIST_CAM_RESOLUTION_TOPIC,
-        #     100,
-        # )
-        # self._wrist_camera_publisher.start()
+        logger.info("Creating wrist camera publisher.")
+        self._wrist_camera_publisher = RGBCameraPublisher(
+            CameraFactory.create_wrist_camera,
+            WRIST_CAM_RGB_TOPIC,
+            WRIST_CAM_RESOLUTION_TOPIC,
+            100,
+        )
+        self._wrist_camera_publisher.start()
 
-        # logger.info("Creating wrist camera subscriber.")
-        # self._wrist_camera_subscriber = RGBCameraSubscriber(
-        #     WRIST_CAM_RESOLUTION_TOPIC,
-        #     WRIST_CAM_RGB_TOPIC,
-        # )
+        logger.info("Creating wrist camera subscriber.")
+        self._wrist_camera_subscriber = RGBCameraSubscriber(
+            WRIST_CAM_RESOLUTION_TOPIC,
+            WRIST_CAM_RGB_TOPIC,
+        )
 
         logger.info("Creating scene camera publisher.")
         self._scene_camera_publisher = RGBCameraPublisher(
@@ -78,7 +79,7 @@ class UR3eStation(BaseEnv):
             SCENE_CAM_RGB_TOPIC,
         )
 
-        self._wrist_camera_subscriber = self._scene_camera_subscriber
+        # self._wrist_camera_subscriber = self._scene_camera_subscriber
         # wait for first images
         time.sleep(2)
 
@@ -125,9 +126,20 @@ class UR3eStation(BaseEnv):
 
         state = np.concatenate((robot_state, gripper_state), axis=0)
         # TODO: resize images (but still include the original?)
+
+        # resize wrist images to 224x224
+        wrist_image_resized = cv2.resize(wrist_image, (224, 224))
+        # resize scene img, cut first 200 x pixels
+        scene_image_resized = scene_image.copy()
+        scene_image_resized = scene_image_resized[:, 200:]
+        # resize scene image to 224x224
+        scene_image_resized = cv2.resize(scene_image_resized, (224, 224))
+
         obs_dict = {
-            "wrist_image": wrist_image,
-            "scene_image": scene_image,
+            "wrist_image_original": wrist_image,
+            "scene_image_original": scene_image,
+            "wrist_image": wrist_image_resized,
+            "scene_image": scene_image_resized,
             "state": state,
             "robot_pose": robot_state,
             "gripper_state": gripper_state,
@@ -142,6 +154,9 @@ class UR3eStation(BaseEnv):
 
     def act(self, robot_pose_se3, gripper_pose, timestamp):
 
+        if isinstance(gripper_pose, np.ndarray):
+            gripper_pose = gripper_pose[0].item()
+
         # move robot to target pose
         current_time = time.time()
         duration = timestamp - current_time
@@ -149,6 +164,8 @@ class UR3eStation(BaseEnv):
             logger.warning("Action duration is negative, setting it to 0")
             duration = 0
         logger.debug(f"Moving robot to pose {robot_pose_se3} with duration {duration}")
+
+        robot_pose_se3[:3, :3] = normalize_so3_matrix(robot_pose_se3[:3, :3])
         self.robot.servo_to_tcp_pose(robot_pose_se3, duration)
 
         # move gripper to target width
@@ -183,17 +200,10 @@ if __name__ == "__main__":
             action[3:6], action[0:3]
         ).homogeneous_matrix
         target_pose_se3 = current_robot_pose_se3 @ relative_robot_pose
-        target_orientation_rotvec = SE3Container.from_homogeneous_matrix(
-            target_pose_se3
-        ).orientation_as_rotation_vector
-        target_position = target_pose_se3[:3, 3]
 
-        target_pose = np.concatenate((target_position, target_orientation_rotvec), axis=0)
         target_gripper_width = action[6] + current_gripper_width
 
-        return np.concatenate((target_pose, target_gripper_width), axis=0)
-
-    import cv2
+        return target_pose_se3, target_gripper_width
 
     env = UR3eStation()
     cv2.namedWindow("wrist", cv2.WINDOW_NORMAL)
@@ -224,6 +234,6 @@ if __name__ == "__main__":
         logger.debug(f"Taking action {action}")
         logger.debug(f"Current pose {current_pose}")
 
-        abs_action = convert_relative_to_absolute_action(current_pose, obs["gripper_state"], action)
-        env.act(abs_action, time.time() + 0.1)
+        robot_se3, gripper = convert_relative_to_absolute_action(current_pose, obs["gripper_state"], action)
+        env.act(robot_pose_se3=robot_se3, gripper_pose=gripper, timestamp=time.time() + 0.1)
         key = cv2.waitKey(100)

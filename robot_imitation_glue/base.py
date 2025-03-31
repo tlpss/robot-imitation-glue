@@ -1,3 +1,6 @@
+import abc
+
+
 class ActionSpec:
     representation = None
     reference_frame = None
@@ -8,14 +11,15 @@ class ProprioObservationSpec:
     reference_frame = None
 
 
-class BaseEnv:
+class BaseEnv(abc.ABC):
     ACTION_SPEC = None
     PROPRIO_OBS_SPEC = None
 
     def get_observations(self):
         pass
 
-    def act(self, robot_pose, gripper_pose, timestamp):
+    @abc.abstractmethod
+    def act(self, robot_pose_se3, gripper_pose, timestamp):
         raise NotImplementedError
 
     def reset(self):

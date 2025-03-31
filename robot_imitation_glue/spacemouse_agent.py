@@ -80,9 +80,9 @@ class SpaceMouseAgent(BaseAgent):
 
         gripper_action = 0
         if state.buttons[1]:
-            gripper_action = -0.1
+            gripper_action = -0.01
         elif state.buttons[0]:
-            gripper_action = 0.1
+            gripper_action = 0.01
 
         return [*pos, *rot, gripper_action]
 
