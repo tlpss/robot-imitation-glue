@@ -96,6 +96,7 @@ class LeRobotDatasetRecorder(BaseDatasetRecorder):
         if root_dataset_dir.exists():
             print(f"Dataset {dataset_name} already exists. Loading it.")
             self.lerobot_dataset = LeRobotDataset(repo_id=dataset_name, root=self.root_dataset_dir)
+            self.lerobot_dataset.start_image_writer(num_processes=0, num_threads=16)
             self._n_recorded_episodes = len(self.lerobot_dataset.episode_data_index)
         else:
             print(f"Dataset {dataset_name} does not exist. Creating it.")
@@ -106,7 +107,7 @@ class LeRobotDatasetRecorder(BaseDatasetRecorder):
                 features=features,
                 use_videos=use_videos,
                 image_writer_processes=0,
-                image_writer_threads=4,
+                image_writer_threads=16,
             )
         print("Dataset created:", self.lerobot_dataset)
 
@@ -126,10 +127,11 @@ class LeRobotDatasetRecorder(BaseDatasetRecorder):
             frame[lerobot_key] = obs[key]
 
         for key in self.state_keys:
-            frame[key] = torch.from_numpy(obs[key])
-        self.lerobot_dataset.add_frame(frame)
+            frame[key] = torch.tensor(obs[key])
+        self.lerobot_dataset.add_frame(frame)  # This is slow
 
     def save_episode(self):
+        # TODO add frames here to dataset
         self.lerobot_dataset.save_episode()
         self._n_recorded_episodes += 1
 
@@ -145,8 +147,10 @@ if __name__ == "__main__":
 
     example_obs = {
         "robot_pose": np.array([0.1, 0.2, 0.3], dtype=np.float32),
-        "image": np.random.rand(3, 64, 64).astype(np.float32),
-        "image2": np.random.rand(3, 128, 64).astype(np.float32),
+        "image": np.random.rand(800, 400, 3).astype(np.float32),
+        "image1": np.random.rand(3, 800, 400).astype(np.float32),
+        "image2": np.random.rand(3, 800, 400).astype(np.float32),
+        "image3": np.random.rand(3, 800, 400).astype(np.float32),
         "gripper_state": np.array([0.1], dtype=np.float32),
     }
 
