@@ -150,6 +150,7 @@ def collect_data(  # noqa: C901
 
         # update GUI.
         vis_img = observation["scene_image"].copy()
+        print(vis_img)
         cv2.imshow("robot_imitation_glue", vis_img)
         # visualize state is_recording, is_paused
         cv2.putText(
