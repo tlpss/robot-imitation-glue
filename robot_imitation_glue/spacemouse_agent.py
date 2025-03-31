@@ -63,8 +63,8 @@ class SpaceMouseAgent(BaseAgent):
 
         # TODO: make these configurable
         deadzone_value = 0.1
-        rescale_pos = 0.05
-        rescale_rot = 0.05
+        rescale_pos = 0.02
+        rescale_rot = 0.02
 
         for i in range(3):
             if abs(pos[i]) < deadzone_value:

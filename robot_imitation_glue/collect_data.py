@@ -1,3 +1,5 @@
+import rerun as rr
+
 from robot_imitation_glue.base import BaseAgent, BaseDatasetRecorder, BaseEnv
 from robot_imitation_glue.utils import precise_wait
 
@@ -44,17 +46,17 @@ def init_keyboard_listener(event: Event, state: State):
     def on_press(key):
         try:
             # "space bar"
-            if key == keyboard.Key.space and not state.is_recording:
+            if key == keyboard.Key.enter and not state.is_recording:
                 event.start_recording = True
 
-            elif key == keyboard.Key.space and state.is_recording:
+            elif key == keyboard.Key.enter and state.is_recording:
                 event.stop_recording = True
 
-            elif key == keyboard.Key.enter and not state.is_recording and not state.is_paused:
+            elif hasattr(key, "char") and key.char == "p" and not state.is_recording and not state.is_paused:
                 # pause the episode
                 event.pause = True
 
-            elif key == keyboard.Key.enter and state.is_paused:
+            elif hasattr(key, "char") and key.char == "p" and state.is_paused:
                 # resume the episode
                 event.resume = True
 
@@ -89,11 +91,7 @@ def collect_data(  # noqa: C901
 ):
     assert env.ACTION_SPEC == teleop_agent.ACTION_SPEC
 
-    # create cv2 window as GUI.
-    cv2.namedWindow("robot_imitation_glue", cv2.WINDOW_NORMAL)
-    cv2.resizeWindow("robot_imitation_glue", 640, 480)
-
-    # TODO: based on provided path, create new dataset or load existing dataset
+    rr.init("robot_imitation_glue", spawn=True)
 
     state = State()
     event = Event()
@@ -129,6 +127,7 @@ def collect_data(  # noqa: C901
         elif event.delete_last and not state.is_recording:
             print("delete last episode")
             # delete last episode
+            raise NotImplementedError("delete last episode not implemented")
 
         elif event.pause and not state.is_recording:
             state.is_paused = True
@@ -143,15 +142,14 @@ def collect_data(  # noqa: C901
             state.is_stopped = True
             listener.stop()
             dataset_recorder.finish_recording()
-            break
+            return
 
         # clear all events
         event.clear()
 
         # update GUI.
         vis_img = observation["scene_image"].copy()
-        print(vis_img)
-        cv2.imshow("robot_imitation_glue", vis_img)
+
         # visualize state is_recording, is_paused
         cv2.putText(
             vis_img, f"recording = {state.is_recording}", (10, 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1
@@ -166,6 +164,7 @@ def collect_data(  # noqa: C901
             (255, 255, 255),
             1,
         )
+        rr.log("image", rr.Image(vis_img, rr.ColorModel.RGB))
 
         # if paused, do not collect teleop or execute action
         if state.is_paused:
@@ -210,13 +209,18 @@ def collect_data(  # noqa: C901
 
 if __name__ == "__main__":
     # create dummy env, agent and recorder to test flow.
+    import os
+    from pathlib import Path
+
     from scipy.spatial.transform import Rotation as R
 
-    from robot_imitation_glue.dataset_recorder import DummyDatasetRecorder
+    from robot_imitation_glue.dataset_recorder import LeRobotDatasetRecorder
     from robot_imitation_glue.robot_env import UR3eStation
     from robot_imitation_glue.spacemouse_agent import SpaceMouseAgent
 
     env = UR3eStation()
+
+    dataset_name = "test_dataset"
 
     def delta_action_to_abs_se3_converter(robot_pose_se3, gripper_state, action):
         # convert spacemouse action to ur3e action
@@ -256,10 +260,20 @@ if __name__ == "__main__":
         relative_euler = R.from_matrix(relative_se3[:3, :3]).as_euler("xyz")
         relative_gripper = gripper_action - gripper_pose
 
-        return np.concatenate((relative_pos, relative_euler, relative_gripper), axis=0)
+        return np.concatenate((relative_pos, relative_euler, relative_gripper), axis=0).astype(np.float32)
 
     agent = SpaceMouseAgent()
-    dataset_recorder = DummyDatasetRecorder()
+
+    if not os.path.exists("datasets"):
+        os.makedirs("datasets")
+    dataset_recorder = LeRobotDatasetRecorder(
+        example_obs_dict=env.get_observations(),
+        example_action=np.zeros((7,), dtype=np.float32),
+        root_dataset_dir=Path(f"datasets/{dataset_name}"),
+        dataset_name=dataset_name,
+        fps=10,
+        use_videos=True,
+    )
 
     collect_data(
         env,
@@ -269,3 +283,6 @@ if __name__ == "__main__":
         delta_action_to_abs_se3_converter,
         abs_se3_to_relative_policy_action_converter,
     )
+
+    env.close()
+    agent.close()

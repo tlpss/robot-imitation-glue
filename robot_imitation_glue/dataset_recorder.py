@@ -3,6 +3,7 @@ from pathlib import Path
 import numpy as np
 import torch
 
+from lerobot.common.datasets.lerobot_dataset import LeRobotDataset
 from robot_imitation_glue.base import BaseDatasetRecorder
 
 
@@ -56,7 +57,6 @@ class LeRobotDatasetRecorder(BaseDatasetRecorder):
         fps: int,
         use_videos=True,
     ):
-        from lerobot.common.datasets.lerobot_dataset import LeRobotDataset
 
         self.root_dataset_dir = root_dataset_dir
         self.dataset_name = dataset_name
@@ -93,17 +93,22 @@ class LeRobotDatasetRecorder(BaseDatasetRecorder):
         features["action"] = {"dtype": "float32", "shape": example_action.shape, "names": None}
         print(f"Features: {features}")
 
-        # TODO: if dataset exists, load it to extend it.
-
-        self.lerobot_dataset = LeRobotDataset.create(
-            repo_id=dataset_name,
-            fps=self.fps,
-            root=self.root_dataset_dir,
-            features=features,
-            use_videos=use_videos,
-            image_writer_processes=0,
-            image_writer_threads=4,
-        )
+        if root_dataset_dir.exists():
+            print(f"Dataset {dataset_name} already exists. Loading it.")
+            self.lerobot_dataset = LeRobotDataset(repo_id=dataset_name, root=self.root_dataset_dir)
+            self._n_recorded_episodes = len(self.lerobot_dataset.episode_data_index)
+        else:
+            print(f"Dataset {dataset_name} does not exist. Creating it.")
+            self.lerobot_dataset = LeRobotDataset.create(
+                repo_id=dataset_name,
+                fps=self.fps,
+                root=self.root_dataset_dir,
+                features=features,
+                use_videos=use_videos,
+                image_writer_processes=0,
+                image_writer_threads=4,
+            )
+        print("Dataset created:", self.lerobot_dataset)
 
     def start_episode(self):
         pass
@@ -157,7 +162,7 @@ if __name__ == "__main__":
         root_dataset_dir=Path("datasets"),
         dataset_name="test_dataset",
         fps=30,
-        use_videos=False,
+        use_videos=True,
     )
 
     for j in range(3):
@@ -168,8 +173,6 @@ if __name__ == "__main__":
 
     dataset_recorder.finish_recording()
     print(f"Recorded {dataset_recorder.n_recorded_episodes} episodes.")
-
-    from lerobot.common.datasets.lerobot_dataset import LeRobotDataset
 
     dataset = LeRobotDataset(repo_id="test_dataset", root=Path("datasets"), episodes=[0, 1])
     print(f"Loaded {len(dataset)} steps.")

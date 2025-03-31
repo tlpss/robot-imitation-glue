@@ -120,9 +120,9 @@ class UR3eStation(BaseEnv):
 
         wrist_image = self._wrist_camera_subscriber.get_rgb_image_as_int()
         scene_image = self._scene_camera_subscriber.get_rgb_image_as_int()
-        robot_state = self.get_robot_pose_euler()
-        gripper_state = self.get_gripper_opening()
-        joints = self.robot.get_joint_configuration()
+        robot_state = self.get_robot_pose_euler().astype(np.float32)
+        gripper_state = self.get_gripper_opening().astype(np.float32)
+        joints = self.robot.get_joint_configuration().astype(np.float32)
 
         state = np.concatenate((robot_state, gripper_state), axis=0)
         # TODO: resize images (but still include the original?)
@@ -176,6 +176,10 @@ class UR3eStation(BaseEnv):
 
         # do not wait, handling timings is the responsibility of the caller
         return
+
+    def close(self):
+        self._wrist_camera_publisher.stop()
+        self._scene_camera_publisher.stop()
 
 
 if __name__ == "__main__":
