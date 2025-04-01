@@ -1,16 +1,17 @@
+import time
+
+# create type for callable that takes obs and returns action
+from typing import Callable
+
+import cv2
+import loguru
+import numpy as np
 import rerun as rr
 
 from robot_imitation_glue.base import BaseAgent, BaseDatasetRecorder, BaseEnv
 from robot_imitation_glue.utils import precise_wait
 
-env = None
-agent = None
-
-import time
-
-import cv2
-import loguru
-import numpy as np
+converter_callable = Callable[dict[str, np.ndarray], np.ndarray]
 
 logger = loguru.logger
 
@@ -73,12 +74,6 @@ def init_keyboard_listener(event: Event, state: State):
     listener.start()
 
     return listener
-
-
-# create type for callable that takes obs and returns action
-from typing import Callable
-
-converter_callable = Callable[dict[str, np.ndarray], np.ndarray]
 
 
 def collect_data(  # noqa: C901
