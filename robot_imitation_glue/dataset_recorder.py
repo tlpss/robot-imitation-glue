@@ -58,7 +58,7 @@ class LeRobotDatasetRecorder(BaseDatasetRecorder):
         use_videos=True,
     ):
 
-        self.root_dataset_dir = root_dataset_dir
+        self.root_dataset_dir = Path(root_dataset_dir)
         self.dataset_name = dataset_name
         self.fps = fps
 
@@ -93,7 +93,7 @@ class LeRobotDatasetRecorder(BaseDatasetRecorder):
         features["action"] = {"dtype": "float32", "shape": example_action.shape, "names": None}
         print(f"Features: {features}")
 
-        if root_dataset_dir.exists():
+        if self.root_dataset_dir.exists():
             print(f"Dataset {dataset_name} already exists. Loading it.")
             self.lerobot_dataset = LeRobotDataset(repo_id=dataset_name, root=self.root_dataset_dir)
             self.lerobot_dataset.start_image_writer(num_processes=0, num_threads=16)
