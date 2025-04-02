@@ -93,6 +93,13 @@ def remove_episodes(
     if "splits" in new_meta.info:
         new_meta.info["splits"] = {"train": f"0:{new_meta.info['total_episodes']}"}
 
+    # Shift episode indices
+    for i, ep_idx in enumerate(sorted(episodes_to_remove, reverse=True)):
+        for idx in range(ep_idx + 1, dataset.meta.total_episodes - i):
+            new_meta.episodes[idx - 1] = new_meta.episodes.pop(idx)
+            new_meta.episodes[idx - 1]["episode_index"] = idx - 1
+            new_meta.episodes_stats[idx - 1] = new_meta.episodes_stats.pop(idx)
+
     # Now that the metadata is recalculated, we update the dataset files by
     # removing the files related to the specified episodes. We perform a safe
     # update such that if an error occurs, any changes are rolled back and the
@@ -109,12 +116,13 @@ def remove_episodes(
     _update_dataset_files(
         new_meta,
         episodes_to_remove,
+        dataset.meta.total_episodes,
     )
 
     updated_dataset = LeRobotDataset(
         repo_id=dataset.repo_id,
         root=dataset.root,
-        episodes=None,  # Load all episodes
+        episodes=new_meta.episodes,  # Load all still existing episodes
         image_transforms=dataset.image_transforms,
         delta_timestamps=dataset.delta_timestamps,
         tolerance_s=dataset.tolerance_s,
@@ -131,7 +139,7 @@ def _move_file(src: Path, dest: Path) -> None:
     shutil.move(src, dest)
 
 
-def _update_dataset_files(new_meta: LeRobotDatasetMetadata, episodes_to_remove: list[int]):
+def _update_dataset_files(new_meta: LeRobotDatasetMetadata, episodes_to_remove: list[int], old_total_episodes: int):
     """Update dataset files.
 
     This function performs a safe update for dataset files. It moves modified or removed
@@ -143,6 +151,7 @@ def _update_dataset_files(new_meta: LeRobotDatasetMetadata, episodes_to_remove: 
          new_meta (LeRobotDatasetMetadata): Updated metadata object containing the new
               dataset state after removing episodes
          episodes_to_remove (list[int]): List of episode indices to remove from the dataset
+         old_total_episodes (int): The total number of episodes in the dataset before. This is needed to rename the data and video files
 
     Raises:
          Exception: If any operation fails, rolls back all changes and re-raises the original exception
@@ -183,6 +192,9 @@ def _update_dataset_files(new_meta: LeRobotDatasetMetadata, episodes_to_remove: 
                 if (new_meta.root / rel_path).exists():
                     _move_file(new_meta.root / rel_path, backup_dir / rel_path)
 
+            # Extra step: Rename files if needed
+            rename_files(new_meta, episodes_to_remove, old_total_episodes)
+
         except Exception as e:
             logging.error(f"Error updating dataset files: {str(e)}. Rolling back changes.")
 
@@ -197,6 +209,23 @@ def _update_dataset_files(new_meta: LeRobotDatasetMetadata, episodes_to_remove: 
                     _move_file(backup_dir / rel_file_path, new_meta.root / rel_file_path)
 
             raise e
+
+
+def rename_files(new_meta: LeRobotDatasetMetadata, episodes_to_remove: list[int], old_total_episodes: int):
+    for i, ep_idx in enumerate(sorted(episodes_to_remove, reverse=True)):
+        for idx in range(ep_idx + 1, old_total_episodes - i):
+            old_data_path = new_meta.root / new_meta.get_data_file_path(idx)
+            new_data_path = new_meta.root / new_meta.get_data_file_path(idx - 1)
+            if old_data_path.exists():
+                old_data_path.rename(new_data_path)
+                print(f"Renamed {old_data_path} to {new_data_path}")
+            if new_meta.video_keys:
+                for vid_key in new_meta.video_keys:
+                    old_video_path = new_meta.root / new_meta.get_video_file_path(idx, vid_key)
+                    new_video_path = new_meta.root / new_meta.get_video_file_path(idx - 1, vid_key)
+                    if old_video_path.exists():
+                        old_video_path.rename(new_video_path)
+    return
 
 
 def _backup_folder(target_dir: Path, backup_path: Path) -> None:
@@ -291,7 +320,7 @@ def main():
     parser.add_argument(
         "--push-to-hub",
         type=int,
-        default=1,
+        default=0,
         help="Upload to Hugging Face hub.",
     )
     parser.add_argument(
