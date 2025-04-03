@@ -203,12 +203,12 @@ def eval(  # noqa: C901
             ## print number of episodes to image
             cv2.putText(
                 vis_image,
-                f"Rollout Episode: {recorder.n_recorded_episodes}",
+                f"Episode: {recorder.n_recorded_episodes}",
                 (10, 30),
                 cv2.FONT_HERSHEY_SIMPLEX,
-                1,
+                0.5,
                 (255, 0, 0),
-                2,
+                1,
             )
             rr.log("scene", rr.Image(vis_image))
 
