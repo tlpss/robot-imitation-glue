@@ -7,6 +7,7 @@ import rerun as rr
 
 from lerobot.common.datasets.lerobot_dataset import LeRobotDataset
 from robot_imitation_glue.utils import precise_wait
+from robot_imitation_glue.base import BaseAgent, BaseDatasetRecorder, BaseEnv
 
 # create type for callable that takes obs and returns action
 
@@ -75,16 +76,36 @@ def init_keyboard_listener(event: Event, state: State):
 
 def eval(  # noqa: C901
     env,
-    teleop_agent,
-    policy_agent,
-    recorder,
+    teleop_agent : BaseAgent,
+    policy_agent : BaseAgent,
+    recorder : BaseDatasetRecorder,
     policy_to_pose_converter,
     teleop_to_pose_converter,
     fps=10,
     eval_dataset: LeRobotDataset = None,
-    eval_dataset_image_key="scene",
+    eval_dataset_image_key: str = "scene",
 ):
+    """
+    Evalulate a (policy) agent on a robot environment. 
 
+    You should also specify a teleop agent which allows to move the robot arm between policy rollouts to set the initial state.
+
+    Rollouts are recorded using the provided dataset recorder. 
+
+    You can provide a dataset to load the initial scene image from. This is useful to evaluate the policy on a specific scene.
+
+    Args:
+        env: robot environment
+        teleop_agent: teleop agent
+        policy_agent: policy agent
+        recorder: dataset recorder
+        policy_to_pose_converter: function to convert policy action to robot pose
+        teleop_to_pose_converter: function to convert teleop action to robot pose
+        fps: frames per second for the dataset recorder
+        eval_dataset: dataset to load initial scene image from
+        eval_dataset_image_key: key in the dataset to load the image from
+
+    """
     state = State()
     event = Event()
     listener = init_keyboard_listener(event, state)
@@ -94,9 +115,13 @@ def eval(  # noqa: C901
     control_period = 1 / fps
     num_rollouts = 0
 
-    initial_scene_image = None
     while not state.is_stopped:
-        # load initial image from the dataset
+
+        initial_scene_image = None
+        instruction = None
+
+        # load initial image from the dataset if provided. display it on top of the current scene image, 
+        # this allows to set the initial state of the scene.
         if eval_dataset is not None:
             n_dataset_episodes = eval_dataset.num_episodes
             if num_rollouts <= n_dataset_episodes:
@@ -115,9 +140,9 @@ def eval(  # noqa: C901
                 initial_scene_image *= 255
                 initial_scene_image = initial_scene_image.astype(np.uint8)
                 
-                task_description =eval_dataset[step_idx]["task"]
+                instruction =eval_dataset[step_idx]["task"]
                 logger.info(
-                    f"Loading initial state of episode {eval_dataset_episode} from eval dataset with task description: {task_description}."
+                    f"Loading initial state of episode {eval_dataset_episode} from eval dataset with instruction: {instruction}."
                 )
 
             if initial_scene_image is not None:
@@ -217,6 +242,7 @@ def eval(  # noqa: C901
 
 
 if __name__ == "__main__":
+    """example of how to use the eval function"""
     from robot_imitation_glue.dataset_recorder import LeRobotDatasetRecorder
     from robot_imitation_glue.mock import MockAgent, MockEnv, mock_agent_to_pose_converter
     import os 
@@ -226,7 +252,7 @@ if __name__ == "__main__":
     policy_agent = MockAgent()
 
 
-    if os.exists("datasets/demo"):
+    if os.path.exists("datasets/demo"):
         dataset = LeRobotDataset(repo_id="mock", root="datasets/demo")
     else:
         dataset = None
