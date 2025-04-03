@@ -20,22 +20,17 @@ class MockEnv(BaseEnv):
         self.agent_pos = np.array([self.grid_size // 2, self.grid_size // 2], dtype=np.int32)
         self.target_pos = np.random.randint(0, self.grid_size, size=(2,), dtype=np.int32)
 
-    def _blob(self, pos_x,pos_y):
+    def _blob(self, pos_x, pos_y):
         # create a gaussian blob
-        x, y = np.meshgrid(
-            np.arange(self.grid_size), np.arange(self.grid_size), indexing="ij"
-        )
-        blob = np.exp(-((x - pos_x) ** 2 + (y - pos_y) ** 2) / self.grid_size *3)
+        x, y = np.meshgrid(np.arange(self.grid_size), np.arange(self.grid_size), indexing="ij")
+        blob = np.exp(-((x - pos_x) ** 2 + (y - pos_y) ** 2) / self.grid_size * 3)
         return blob
+
     def get_observations(self):
         state_img = np.zeros((self.grid_size, self.grid_size, 3), dtype=np.uint8)
 
-
-        state_img[:, :, 0] = state_img[:,:,0] + self._blob(self.agent_pos[0], self.agent_pos[1]) * 255
-        state_img[:, :, 1] = state_img[:,:,1] + self._blob(self.target_pos[0], self.target_pos[1]) * 255
-
-
-    
+        state_img[:, :, 0] = state_img[:, :, 0] + self._blob(self.agent_pos[0], self.agent_pos[1]) * 255
+        state_img[:, :, 1] = state_img[:, :, 1] + self._blob(self.target_pos[0], self.target_pos[1]) * 255
 
         return {"agent_pos": self.agent_pos.astype(np.float32), "scene": state_img}
 
