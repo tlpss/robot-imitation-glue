@@ -106,13 +106,18 @@ def eval(  # noqa: C901
 
             if eval_dataset_episode > -1:
                 # get initial scene image
-                initial_scene_image = eval_dataset[eval_dataset.episode_data_index["start"][eval_dataset_episode]][
-                    eval_dataset_image_key
-                ]
-                initial_scene_image = np.array(initial_scene_image)
-                task_description = eval_dataset[eval_dataset.episode_data_index["start"][eval_dataset_episode]]["task"]
+                print(eval_dataset.episode_data_index)
+                step_idx = eval_dataset.episode_data_index["from"][eval_dataset_episode].item()
+                initial_scene_image = eval_dataset[step_idx][eval_dataset_image_key]
+
+                # convert to numpy array of uint8 values
+                initial_scene_image = initial_scene_image.permute(1,2,0).numpy()
+                initial_scene_image *= 255
+                initial_scene_image = initial_scene_image.astype(np.uint8)
+                
+                task_description =eval_dataset[step_idx]["task"]
                 logger.info(
-                    f"Loading initial state of episode {eval_dataset_episode} from eval dataset with task description: {task_description}"
+                    f"Loading initial state of episode {eval_dataset_episode} from eval dataset with task description: {task_description}."
                 )
 
             if initial_scene_image is not None:
@@ -169,6 +174,19 @@ def eval(  # noqa: C901
 
             observations = env.get_observations()
 
+            vis_image = observations[eval_dataset_image_key]
+            ## print number of episodes to image
+            cv2.putText(
+                vis_image,
+                f"Rollout Episode: {recorder.n_recorded_episodes}",
+                (10, 30),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                1,
+                (255, 0, 0),
+                2,
+            )
+            rr.log("scene", rr.Image(vis_image))
+
             action = policy_agent.get_action(observations)
 
             # convert teleop action to env action
@@ -201,14 +219,18 @@ def eval(  # noqa: C901
 if __name__ == "__main__":
     from robot_imitation_glue.dataset_recorder import LeRobotDatasetRecorder
     from robot_imitation_glue.mock import MockAgent, MockEnv, mock_agent_to_pose_converter
-
+    import os 
     env = MockEnv()
     env.reset()
     teleop_agent = MockAgent()
     policy_agent = MockAgent()
 
+
+    if os.exists("datasets/demo"):
+        dataset = LeRobotDataset(repo_id="mock", root="datasets/demo")
+    else:
+        dataset = None
     # create a dataset recorder
-    import os
 
     if os.path.exists("datasets/test_dataset"):
         os.system("rm -rf datasets/test_dataset")
@@ -229,4 +251,5 @@ if __name__ == "__main__":
         mock_agent_to_pose_converter,
         mock_agent_to_pose_converter,
         fps=2,
+        eval_dataset=dataset,
     )

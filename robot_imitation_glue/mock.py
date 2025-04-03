@@ -41,7 +41,6 @@ class MockEnv(BaseEnv):
 
     def act(self, robot_pose_se3, gripper_opening, timestamp):
         action = robot_pose_se3[:2, 3]
-        print(f"action: {action}")
         # binarize action
         action = np.round(action).astype(np.int32)
         self.agent_pos = action
@@ -69,7 +68,6 @@ class MockAgent(BaseAgent):
 
         def on_press(key):
             if hasattr(key, "char"):
-                print(f"Key pressed: {key.char}")
                 if key.char == "j":
                     self.kb_press_action[1] = -1
                 elif key.char == "l":
