@@ -28,7 +28,6 @@ class Event:
     delete_last = False
     pause = False
     resume = False
-    delete_last = False
     quit = False
 
     def clear(self):

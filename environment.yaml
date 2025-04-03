@@ -11,6 +11,7 @@ dependencies:
   - python=3.10
   - pip
   - pip:
+    - pynput
     -  airo-ipc/
     -  airo-mono/airo-typing
     -  airo-mono/airo-dataset-tools
