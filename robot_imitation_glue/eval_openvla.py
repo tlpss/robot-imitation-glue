@@ -1,4 +1,5 @@
 import numpy as np
+from airo_spatial_algebra import SE3Container
 from scipy.spatial.transform import Rotation as R
 
 
@@ -34,38 +35,13 @@ def delta_action_to_abs_se3_converter(robot_pose_se3, gripper_state, action):
     return new_robot_SE3, new_gripper_state
 
 
-def delta_action_to_abs_se3_converter_abs_gripper(robot_pose_se3, gripper_state, action):
-    # convert spacemouse action to ur3e action
-    # we take the action to consist of a delta position, delta rotation and delta gripper width.
-    # the delta rotation is interpreted as expressed in a frame with the same orientation as the base frame but with the origin at the EEF.
-    # in this way, when rotating the spacemouse, the robot eef will not move around, while at the same time the axes of orientation
-    # do not depend on the current orientation of the EEF.
-
-    # the delta position is intepreted in the world frame and also applied on the EEF frame.
-
-    delta_pos = action[:3]
-    delta_rot = action[3:6]
+def convert_policy(robot_pose_se3, gripper_state, action):
     gripper_action = action[6]
-
-    robot_trans = robot_pose_se3[:3, 3]
-    robot_SO3 = robot_pose_se3[:3, :3]
-
-    new_robot_trans = robot_trans + delta_pos
-    # rotation is now interpreted as euler and not as rotvec
-    # similar to Diffusion Policy.
-    # however, rotvec seems more principled (related to twist)
-    new_robot_SO3 = R.from_euler("xyz", delta_rot).as_matrix() @ robot_SO3
-
-    new_robot_SE3 = np.eye(4)
-    new_robot_SE3[:3, :3] = new_robot_SO3
-    new_robot_SE3[:3, 3] = new_robot_trans
-
-    # new_gripper_state = gripper_state + gripper_action
-    # new_gripper_state = np.clip(new_gripper_state, 0, 0.085)
+    relative_robot_pose = SE3Container.from_euler_angles_and_translation(action[3:6], action[0:3]).homogeneous_matrix
+    target_pose_se3 = robot_pose_se3 @ relative_robot_pose
 
     new_gripper_state = 0 if gripper_action < 0.5 else 0.085
-
-    return new_robot_SE3, new_gripper_state
+    return target_pose_se3, new_gripper_state
 
 
 if __name__ == "__main__":
@@ -106,7 +82,7 @@ if __name__ == "__main__":
         teleop_agent,
         policy_agent,
         dataset_recorder,
-        delta_action_to_abs_se3_converter_abs_gripper,
+        convert_policy,
         delta_action_to_abs_se3_converter,
         fps=2,
         eval_dataset=dataset,

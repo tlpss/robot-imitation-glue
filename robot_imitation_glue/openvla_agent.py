@@ -20,7 +20,7 @@ class OpenVLAAgent(BaseAgent):
         image = observation["scene_image"]
 
         # Get language instruction, currently hardcoded
-        instruction = "move the block to the blue" " rectangle"
+        instruction = "move the block to the blue target"
 
         # Note: dataset name is hardcoded for now
         action = requests.post(
