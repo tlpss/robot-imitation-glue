@@ -158,7 +158,7 @@ def eval(  # noqa: C901
 
             observations = env.get_observations()
 
-            vis_image = observations["scene"]
+            vis_image = observations[eval_dataset_image_key]
             rr.log("scene", rr.Image(vis_image))
             if initial_scene_image is not None:
                 # blend initial scene image with current scene image
@@ -174,7 +174,7 @@ def eval(  # noqa: C901
 
             env.act(
                 robot_pose_se3=target_pose,
-                gripper_opening=target_gripper_state,
+                gripper_pose=target_gripper_state,
                 timestamp=time.time() + control_period,
             )
 
@@ -220,7 +220,7 @@ def eval(  # noqa: C901
             )
             env.act(
                 robot_pose_se3=new_robot_target_pose,
-                gripper_opening=new_target_gripper_state,
+                gripper_pose=new_target_gripper_state,
                 timestamp=time.time() + control_period,
             )
 
