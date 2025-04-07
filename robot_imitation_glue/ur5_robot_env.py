@@ -5,12 +5,16 @@ Actions as absolute target pose (rotation vector) in robot base frame and absolu
 Proprioception as robot pose (euler angles) in robot base frame and gripper width
 """
 
+import os
 import time
 
 import cv2
 import loguru
 import numpy as np
 from airo_camera_toolkit.cameras.realsense.realsense import Realsense
+from airo_robots.grippers.hardware.schunk_egk40_usb import SCHUNK_STROKE_OPTIONS, SchunkEGK40_USB
+
+# from airo_camera_toolkit.cameras.zed.zed import Zed
 from airo_robots.manipulators.hardware.ur_rtde import URrtde
 from airo_spatial_algebra.se3 import SE3Container, normalize_so3_matrix
 
@@ -23,11 +27,14 @@ WRIST_REALSENSE_SERIAL = "925322060348"
 WRIST_CAM_RGB_TOPIC = "wrist_rgb"
 WRIST_CAM_RESOLUTION_TOPIC = "wrist_resolution"
 
-SCENE_REALSENSE_SERIAL = "231122072220"
+SCENE_ZED_SERIAL = "31733653"
 SCENE_CAM_RGB_TOPIC = "scene_rgb"
 SCENE_CAM_RESOLUTION_TOPIC = "scene_resolution"
 
 ROBOT_IP = "10.42.0.163"
+
+SCHUNK_GRIPPER_HOST = "/dev/ttyUSB1,11,115200,8E1"  # run bks_scan -H <usb> to find the slaveID, run dmesg | grep tty to find the usb port
+
 
 logger = loguru.logger
 
@@ -37,7 +44,8 @@ class CameraFactory:
         return Realsense(resolution=Realsense.RESOLUTION_480, fps=30, serial_number=WRIST_REALSENSE_SERIAL)
 
     def create_scene_camera():
-        return Realsense(resolution=Realsense.RESOLUTION_480, fps=30, serial_number=SCENE_REALSENSE_SERIAL)
+        pass
+        # return Zed(resolution=Zed.RESOLUTION_HD2K, fps=30, depth_mode=Zed.DEPTH_MODE_PERFORMANCE,serial_number=SCENE_ZED_SERIAL)
 
 
 class UR5eStation(BaseEnv):
@@ -84,10 +92,14 @@ class UR5eStation(BaseEnv):
 
         # set up robot and gripper
         # logger.info("connecting to gripper.")
-        # self.gripper = Robotiq2F85(ROBOT_IP)
 
+        # set environment variable for bks gripper comm
+        os.environ["BKS_HOST"] = SCHUNK_GRIPPER_HOST
+        self.gripper = SchunkEGK40_USB(SCHUNK_GRIPPER_HOST, SCHUNK_STROKE_OPTIONS.DEFAULT)
+        self.gripper.max_grasp_force = self.gripper.gripper_specs.min_force  # minimal force for EGK40 is 55N
+        self.gripper.speed = self.gripper.gripper_specs.max_speed / 2
         logger.info("connecting to robot.")
-        self.robot = URrtde(ROBOT_IP, URrtde.UR3E_CONFIG, gripper=None)
+        self.robot = URrtde(ROBOT_IP, URrtde.UR3E_CONFIG, gripper=self.gripper)
 
         # set up additional sensors if needed.
 
@@ -177,10 +189,15 @@ class UR5eStation(BaseEnv):
         self.robot.servo_to_tcp_pose(robot_pose_se3, duration)
 
         # move gripper to target width
-        # gripper_width = np.clip(
-        #     gripper_pose, self.gripper.gripper_specs.min_width, self.gripper.gripper_specs.max_width
-        # )
-        # self.gripper._set_target_width(gripper_width)
+        gripper_width = np.clip(
+            gripper_pose, self.gripper.gripper_specs.min_width, self.gripper.gripper_specs.max_width
+        )
+
+        logger.debug(f"Setting gripper width to {gripper_width}")
+        time_before_gripper = time.time()
+        self.gripper.move(gripper_width, set_speed_and_force=False)
+        time_after_gripper = time.time()
+        logger.debug(f"Gripper servo time: {time_after_gripper - time_before_gripper}")
 
         # do not wait, handling timings is the responsibility of the caller
         return
@@ -202,7 +219,7 @@ if __name__ == "__main__":
         tcp_pose[2, 3] = 0.176
         joints = action[:6]
         gripper = action[6]
-        gripper = gripper * 0.08  # convert to stroke width
+        gripper = (1 - gripper) * 0.08  # convert to stroke width
         pose = ur5e.forward_kinematics_with_tcp(*joints, tcp_pose)
         return pose, gripper
 
@@ -210,7 +227,7 @@ if __name__ == "__main__":
 
     config = DynamixelConfig(
         joint_ids=[1, 2, 3, 4, 5, 6],
-        joint_offsets=(np.array([4, 8, -3, 4, 7, 16]) * np.pi / 8).tolist(),
+        joint_offsets=(np.array([40, 16, 25, 40, 15, 7]) * np.pi / 16).tolist(),
         joint_signs=[1, 1, -1, 1, 1, 1],
         gripper_config=(7, 194, 152),
     )
@@ -222,6 +239,7 @@ if __name__ == "__main__":
     cv2.resizeWindow("scene", 640, 480)
 
     while True:
+        loop_time = time.time()
         obs = env.get_observations()
         # print(time.time())
         # print(obs["wrist_image"].shape)
@@ -231,4 +249,11 @@ if __name__ == "__main__":
         action = agent.get_action(obs)
         robot_se3, gripper = convert_abs_gello_actions_to_se3(action)
         env.act(robot_pose_se3=robot_se3, gripper_pose=gripper, timestamp=time.time() + 0.1)
-        key = cv2.waitKey(100)
+
+        loop_duration = time.time() - loop_time
+        # wait for 100ms - loop time
+        key = cv2.waitKey(max(1, int(100 - loop_duration * 1000)))
+
+    env.robot.gripper.move(0.04).wait()
+    time.sleep(5)
+    env.robot.gripper.move(0.0).wait()

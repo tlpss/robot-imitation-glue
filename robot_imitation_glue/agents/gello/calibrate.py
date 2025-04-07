@@ -90,7 +90,7 @@ def main():
         "--start-joints",
         type=float,
         nargs="+",
-        default=[-3.14, -1.57, 1.57, -1.57, -1.57, 0],
+        default=[-3.14, -1.57, 1.57, -1.57, -1.57, -1.57],
         help="The joint angles that the GELLO is placed in at (in radians)",
     )
     parser.add_argument(
