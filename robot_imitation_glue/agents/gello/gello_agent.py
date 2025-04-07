@@ -1,10 +1,12 @@
 """Gello teleop agent"""
 
-from robot_imitation_glue.base import BaseAgent
-from robot_imitation_glue.agents.gello.dynamixel_robot import DynamixelRobot
 from dataclasses import dataclass
-from typing import List, Optional, Tuple, Dict
-import numpy as np 
+from typing import Dict, List, Optional, Tuple
+
+import numpy as np
+
+from robot_imitation_glue.agents.gello.dynamixel_robot import DynamixelRobot
+from robot_imitation_glue.base import BaseAgent
 
 
 @dataclass
@@ -17,8 +19,9 @@ class DynamixelConfig:
     def __post_init__(self):
         assert len(self.joint_ids) == len(self.joint_offsets) == len(self.joint_signs)
 
+
 class GelloAgent(BaseAgent):
-    """ 
+    """
     takes in a Dynamixel config for a Gello teleop arm and creates the teleop agent
     """
 
@@ -30,9 +33,8 @@ class GelloAgent(BaseAgent):
             gripper_config=dynamixel_config.gripper_config,
             port=port,
             start_joints=start_joints,
-            real=True
+            real=True,
         )
-
 
     def get_action(self, obs: Dict[str, np.ndarray]) -> np.ndarray:
         """
@@ -40,15 +42,16 @@ class GelloAgent(BaseAgent):
         """
 
         return self.robot.get_joint_state()
-    
 
 
 if __name__ == "__main__":
+    import time
+
     import numpy as np
-    import time 
+
     config = DynamixelConfig(
         joint_ids=[1, 2, 3, 4, 5, 6],
-        joint_offsets=(np.array([0,4,-6,2,0,6])*np.pi/4).tolist(),
+        joint_offsets=(np.array([0, 4, -6, 2, 0, 6]) * np.pi / 4).tolist(),
         joint_signs=[1, 1, -1, 1, 1, 1],
         gripper_config=(7, 194, 152),
     )

@@ -70,9 +70,7 @@ class FakeDynamixelDriver(DynamixelDriverProtocol):
 
     def set_joints(self, joint_angles: Sequence[float]):
         if len(joint_angles) != len(self._ids):
-            raise ValueError(
-                "The length of joint_angles must match the number of servos"
-            )
+            raise ValueError("The length of joint_angles must match the number of servos")
         if not self._torque_enabled:
             raise RuntimeError("Torque must be enabled to set joint angles")
         self._joint_angles = np.array(joint_angles)
@@ -91,9 +89,7 @@ class FakeDynamixelDriver(DynamixelDriverProtocol):
 
 
 class DynamixelDriver(DynamixelDriverProtocol):
-    def __init__(
-        self, ids: Sequence[int], port: str = "/dev/ttyUSB0", baudrate: int = 57600
-    ):
+    def __init__(self, ids: Sequence[int], port: str = "/dev/ttyUSB0", baudrate: int = 57600):
         """Initialize the DynamixelDriver class.
 
         Args:
@@ -131,9 +127,7 @@ class DynamixelDriver(DynamixelDriverProtocol):
         # Add parameters for each Dynamixel servo to the group sync read
         for dxl_id in self._ids:
             if not self._groupSyncRead.addParam(dxl_id):
-                raise RuntimeError(
-                    f"Failed to add parameter for Dynamixel with ID {dxl_id}"
-                )
+                raise RuntimeError(f"Failed to add parameter for Dynamixel with ID {dxl_id}")
 
         # Disable torque for each Dynamixel servo
         self._torque_enabled = False
@@ -147,9 +141,7 @@ class DynamixelDriver(DynamixelDriverProtocol):
 
     def set_joints(self, joint_angles: Sequence[float]):
         if len(joint_angles) != len(self._ids):
-            raise ValueError(
-                "The length of joint_angles must match the number of servos"
-            )
+            raise ValueError("The length of joint_angles must match the number of servos")
         if not self._torque_enabled:
             raise RuntimeError("Torque must be enabled to set joint angles")
 
@@ -166,13 +158,9 @@ class DynamixelDriver(DynamixelDriverProtocol):
             ]
 
             # Add goal position value to the Syncwrite parameter storage
-            dxl_addparam_result = self._groupSyncWrite.addParam(
-                dxl_id, param_goal_position
-            )
+            dxl_addparam_result = self._groupSyncWrite.addParam(dxl_id, param_goal_position)
             if not dxl_addparam_result:
-                raise RuntimeError(
-                    f"Failed to set joint angle for Dynamixel with ID {dxl_id}"
-                )
+                raise RuntimeError(f"Failed to set joint angle for Dynamixel with ID {dxl_id}")
 
         # Syncwrite goal position
         dxl_comm_result = self._groupSyncWrite.txPacket()
@@ -195,9 +183,7 @@ class DynamixelDriver(DynamixelDriverProtocol):
                 if dxl_comm_result != COMM_SUCCESS or dxl_error != 0:
                     print(dxl_comm_result)
                     print(dxl_error)
-                    raise RuntimeError(
-                        f"Failed to set torque mode for Dynamixel with ID {dxl_id}"
-                    )
+                    raise RuntimeError(f"Failed to set torque mode for Dynamixel with ID {dxl_id}")
 
         self._torque_enabled = enable
 
@@ -217,18 +203,12 @@ class DynamixelDriver(DynamixelDriverProtocol):
                     print(f"warning, comm failed: {dxl_comm_result}")
                     continue
                 for i, dxl_id in enumerate(self._ids):
-                    if self._groupSyncRead.isAvailable(
-                        dxl_id, ADDR_PRESENT_POSITION, LEN_PRESENT_POSITION
-                    ):
-                        angle = self._groupSyncRead.getData(
-                            dxl_id, ADDR_PRESENT_POSITION, LEN_PRESENT_POSITION
-                        )
+                    if self._groupSyncRead.isAvailable(dxl_id, ADDR_PRESENT_POSITION, LEN_PRESENT_POSITION):
+                        angle = self._groupSyncRead.getData(dxl_id, ADDR_PRESENT_POSITION, LEN_PRESENT_POSITION)
                         angle = np.int32(np.uint32(angle))
                         _joint_angles[i] = angle
                     else:
-                        raise RuntimeError(
-                            f"Failed to get joint angles for Dynamixel with ID {dxl_id}"
-                        )
+                        raise RuntimeError(f"Failed to get joint angles for Dynamixel with ID {dxl_id}")
                 self._joint_angles = _joint_angles
             # self._groupSyncRead.clearParam() # TODO what does this do? should i add it
 

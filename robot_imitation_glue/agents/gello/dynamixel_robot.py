@@ -2,6 +2,7 @@ from typing import Dict, Optional, Sequence, Tuple
 
 import numpy as np
 
+
 class DynamixelRobot:
     """A class representing a dynamixel robot."""
 
@@ -55,16 +56,12 @@ class DynamixelRobot:
             self._joint_signs = np.array(joint_signs)
 
         assert len(self._joint_ids) == len(self._joint_offsets), (
-            f"joint_ids: {len(self._joint_ids)}, "
-            f"joint_offsets: {len(self._joint_offsets)}"
+            f"joint_ids: {len(self._joint_ids)}, " f"joint_offsets: {len(self._joint_offsets)}"
         )
         assert len(self._joint_ids) == len(self._joint_signs), (
-            f"joint_ids: {len(self._joint_ids)}, "
-            f"joint_signs: {len(self._joint_signs)}"
+            f"joint_ids: {len(self._joint_ids)}, " f"joint_signs: {len(self._joint_signs)}"
         )
-        assert np.all(
-            np.abs(self._joint_signs) == 1
-        ), f"joint_signs: {self._joint_signs}"
+        assert np.all(np.abs(self._joint_signs) == 1), f"joint_signs: {self._joint_signs}"
 
         if real:
             self._driver = DynamixelDriver(joint_ids, port=port, baudrate=baudrate)
@@ -87,11 +84,7 @@ class DynamixelRobot:
                 zip(current_joints, start_joints, self._joint_offsets)
             ):
                 new_joint_offsets.append(
-                    np.pi
-                    * 2
-                    * np.round((-s_joint + c_joint) / (2 * np.pi))
-                    * self._joint_signs[idx]
-                    + joint_offset
+                    np.pi * 2 * np.round((-s_joint + c_joint) / (2 * np.pi)) * self._joint_signs[idx] + joint_offset
                 )
             if gripper_config is not None:
                 new_joint_offsets.append(self._joint_offsets[-1])
@@ -106,9 +99,7 @@ class DynamixelRobot:
 
         if self.gripper_open_close is not None:
             # map pos to [0, 1]
-            g_pos = (pos[-1] - self.gripper_open_close[0]) / (
-                self.gripper_open_close[1] - self.gripper_open_close[0]
-            )
+            g_pos = (pos[-1] - self.gripper_open_close[0]) / (self.gripper_open_close[1] - self.gripper_open_close[0])
             g_pos = min(max(0, g_pos), 1)
             pos[-1] = g_pos
 
@@ -132,12 +123,11 @@ class DynamixelRobot:
 
     def get_observations(self) -> Dict[str, np.ndarray]:
         return {"joint_state": self.get_joint_state()}
-    
 
 
 if __name__ == "__main__":
     robot = DynamixelRobot(
-        joint_ids=[1, 2, 3, 4, 5, 6,7],
+        joint_ids=[1, 2, 3, 4, 5, 6, 7],
         port="/dev/ttyUSB0",
         baudrate=57600,
         real=True,

@@ -1,8 +1,11 @@
+import argparse
 from dataclasses import dataclass
 from typing import Tuple
+
 import numpy as np
-import argparse
+
 from robot_imitation_glue.agents.gello.dynamixel_driver import DynamixelDriver
+
 
 @dataclass
 class Args:
@@ -21,9 +24,7 @@ class Args:
     def __post_init__(self):
         assert len(self.joint_signs) == len(self.start_joints)
         for idx, j in enumerate(self.joint_signs):
-            assert (
-                j == -1 or j == 1
-            ), f"Joint idx: {idx} should be -1 or 1, but got {j}."
+            assert j == -1 or j == 1, f"Joint idx: {idx} should be -1 or 1, but got {j}."
 
     @property
     def num_robot_joints(self) -> int:
@@ -58,9 +59,7 @@ def get_config(args: Args) -> None:
         for i in range(args.num_robot_joints):
             best_offset = 0
             best_error = 1e6
-            for offset in np.linspace(
-                -8 * np.pi, 8 * np.pi, 8 * 32 + 1
-            ):  # intervals of pi/16
+            for offset in np.linspace(-8 * np.pi, 8 * np.pi, 8 * 32 + 1):  # intervals of pi/16
                 error = get_error(offset, i, curr_joints)
                 if error < best_error:
                     best_error = error
@@ -83,31 +82,40 @@ def get_config(args: Args) -> None:
                 np.rad2deg(driver.get_joints()[-1]) - 42,
             )
 
+
 def main():
     parser = argparse.ArgumentParser(description="Calibrate GELLO robot joints")
-    parser.add_argument("--port", type=str, default="/dev/ttyUSB0", 
-                        help="The port that GELLO is connected to")
-    parser.add_argument("--start-joints", type=float, nargs="+", default=[-3.14, -1.57, 1.57, -1.57, -1.57, 0],
-                        help="The joint angles that the GELLO is placed in at (in radians)")
-    parser.add_argument("--joint-signs", type=float, nargs="+", default=[1, 1, -1, 1, 1, 1],
-                        help="The signs for each joint (should be 1 or -1)")
-    parser.add_argument("--gripper", action="store_true", default=True,
-                        help="Whether or not the gripper is attached")
-    parser.add_argument("--no-gripper", action="store_false", dest="gripper",
-                        help="Disable gripper")
-    
+    parser.add_argument("--port", type=str, default="/dev/ttyUSB0", help="The port that GELLO is connected to")
+    parser.add_argument(
+        "--start-joints",
+        type=float,
+        nargs="+",
+        default=[-3.14, -1.57, 1.57, -1.57, -1.57, 0],
+        help="The joint angles that the GELLO is placed in at (in radians)",
+    )
+    parser.add_argument(
+        "--joint-signs",
+        type=float,
+        nargs="+",
+        default=[1, 1, -1, 1, 1, 1],
+        help="The signs for each joint (should be 1 or -1)",
+    )
+    parser.add_argument("--gripper", action="store_true", default=True, help="Whether or not the gripper is attached")
+    parser.add_argument("--no-gripper", action="store_false", dest="gripper", help="Disable gripper")
+
     args = parser.parse_args()
-    
+
     # Convert to Args class
     calibration_args = Args(
         port=args.port,
         start_joints=tuple(args.start_joints),
         joint_signs=tuple(args.joint_signs),
-        gripper=args.gripper
+        gripper=args.gripper,
     )
-    
+
     # Run calibration
     get_config(calibration_args)
+
 
 if __name__ == "__main__":
     main()

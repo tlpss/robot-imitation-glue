@@ -17,8 +17,7 @@ class BaseEnv(abc.ABC):
 
     @abc.abstractmethod
     def get_observations(self):
-        """ observations as a dict of (str, np.ndarray)"""
-        pass
+        """observations as a dict of (str, np.ndarray)"""
 
     @abc.abstractmethod
     def act(self, robot_pose_se3, gripper_pose, timestamp):
@@ -29,18 +28,15 @@ class BaseEnv(abc.ABC):
 
     @abc.abstractmethod
     def get_joint_configuration(self):
-        """ joint configuration as a (n,) numpy array"""
-        pass
+        """joint configuration as a (n,) numpy array"""
 
     @abc.abstractmethod
     def get_robot_pose_se3(self):
-        """ robot pose in base frame as a 4x4 numpy array"""
-        pass
+        """robot pose in base frame as a 4x4 numpy array"""
 
     @abc.abstractmethod
     def get_gripper_opening(self):
-        """ absolute gripper opening in meters as a (1,) numpy array"""
-        pass
+        """absolute gripper opening in meters as a (1,) numpy array"""
 
     @property
     def action_spec(self):

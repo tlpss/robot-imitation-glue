@@ -11,12 +11,11 @@ import cv2
 import loguru
 import numpy as np
 from airo_camera_toolkit.cameras.realsense.realsense import Realsense
-from airo_robots.grippers.hardware.robotiq_2f85_urcap import Robotiq2F85
 from airo_robots.manipulators.hardware.ur_rtde import URrtde
 from airo_spatial_algebra.se3 import SE3Container, normalize_so3_matrix
 
 from robot_imitation_glue.base import BaseEnv
-from robot_imitation_glue.ipc_camera import RGBCameraPublisher, RGBCameraSubscriber, initialize_ipc
+from robot_imitation_glue.ipc_camera import initialize_ipc
 
 # env consists of 1 zed scene camera, 1 wrist  realsense cameras and a UR5e robot + Schunk gripper
 
@@ -168,13 +167,13 @@ class UR5eStation(BaseEnv):
 
         robot_pose_se3[:3, :3] = normalize_so3_matrix(robot_pose_se3[:3, :3])
 
-        z_coord = robot_pose_se3[2,3]
-        
+        z_coord = robot_pose_se3[2, 3]
+
         if z_coord < 0.0:
-            # too far 
+            # too far
             logger.warning("Z coordinate is below zero . not executing action")
-            return 
-        
+            return
+
         self.robot.servo_to_tcp_pose(robot_pose_se3, duration)
 
         # move gripper to target width
@@ -187,31 +186,31 @@ class UR5eStation(BaseEnv):
         return
 
     def close(self):
-        return 
+        return
         self._wrist_camera_publisher.stop()
         self._scene_camera_publisher.stop()
 
 
 if __name__ == "__main__":
     # set cli logging level to debug
-    from robot_imitation_glue.agents.gello import GelloAgent, DynamixelConfig
     from ur_analytic_ik import ur5e
+
+    from robot_imitation_glue.agents.gello import DynamixelConfig, GelloAgent
+
     def convert_abs_gello_actions_to_se3(action: np.ndarray):
         tcp_pose = np.eye(4)
-        tcp_pose[2,3] = 0.176
+        tcp_pose[2, 3] = 0.176
         joints = action[:6]
         gripper = action[6]
-        gripper = gripper * 0.08 # convert to stroke width
+        gripper = gripper * 0.08  # convert to stroke width
         pose = ur5e.forward_kinematics_with_tcp(*joints, tcp_pose)
         return pose, gripper
-
-
 
     env = UR5eStation()
 
     config = DynamixelConfig(
         joint_ids=[1, 2, 3, 4, 5, 6],
-        joint_offsets=(np.array([4,8,-3,4,7,16])*np.pi/8).tolist(),
+        joint_offsets=(np.array([4, 8, -3, 4, 7, 16]) * np.pi / 8).tolist(),
         joint_signs=[1, 1, -1, 1, 1, 1],
         gripper_config=(7, 194, 152),
     )
@@ -222,8 +221,6 @@ if __name__ == "__main__":
     cv2.resizeWindow("wrist", 640, 480)
     cv2.resizeWindow("scene", 640, 480)
 
-    
-
     while True:
         obs = env.get_observations()
         # print(time.time())
@@ -232,6 +229,6 @@ if __name__ == "__main__":
         # cv2.imshow("scene", obs["scene_image"])
 
         action = agent.get_action(obs)
-        robot_se3,gripper = convert_abs_gello_actions_to_se3(action)
+        robot_se3, gripper = convert_abs_gello_actions_to_se3(action)
         env.act(robot_pose_se3=robot_se3, gripper_pose=gripper, timestamp=time.time() + 0.1)
         key = cv2.waitKey(100)
