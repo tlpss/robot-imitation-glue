@@ -15,7 +15,9 @@ class BaseEnv(abc.ABC):
     ACTION_SPEC = None
     PROPRIO_OBS_SPEC = None
 
+    @abc.abstractmethod
     def get_observations(self):
+        """ observations as a dict of (str, np.ndarray)"""
         pass
 
     @abc.abstractmethod
@@ -23,6 +25,21 @@ class BaseEnv(abc.ABC):
         raise NotImplementedError
 
     def reset(self):
+        pass
+
+    @abc.abstractmethod
+    def get_joint_configuration(self):
+        """ joint configuration as a (n,) numpy array"""
+        pass
+
+    @abc.abstractmethod
+    def get_robot_pose_se3(self):
+        """ robot pose in base frame as a 4x4 numpy array"""
+        pass
+
+    @abc.abstractmethod
+    def get_gripper_opening(self):
+        """ absolute gripper opening in meters as a (1,) numpy array"""
         pass
 
     @property
