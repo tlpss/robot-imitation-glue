@@ -12,13 +12,13 @@ import cv2
 import loguru
 import numpy as np
 from airo_camera_toolkit.cameras.realsense.realsense import Realsense
-from airo_robots.grippers.hardware.schunk_egk40_usb import SCHUNK_STROKE_OPTIONS, SchunkEGK40_USB
 
 # from airo_camera_toolkit.cameras.zed.zed import Zed
 from airo_robots.manipulators.hardware.ur_rtde import URrtde
 from airo_spatial_algebra.se3 import SE3Container, normalize_so3_matrix
 
 from robot_imitation_glue.base import BaseEnv
+from robot_imitation_glue.grippers.schunk_process import SchunkGripperProcess
 from robot_imitation_glue.ipc_camera import initialize_ipc
 
 # env consists of 1 zed scene camera, 1 wrist  realsense cameras and a UR5e robot + Schunk gripper
@@ -33,7 +33,7 @@ SCENE_CAM_RESOLUTION_TOPIC = "scene_resolution"
 
 ROBOT_IP = "10.42.0.163"
 
-SCHUNK_GRIPPER_HOST = "/dev/ttyUSB1,11,115200,8E1"  # run bks_scan -H <usb> to find the slaveID, run dmesg | grep tty to find the usb port
+SCHUNK_GRIPPER_HOST = "/dev/ttyUSB2,11,115200,8E1"  # run bks_scan -H <usb> to find the slaveID, run dmesg | grep tty to find the usb port
 
 
 logger = loguru.logger
@@ -95,9 +95,9 @@ class UR5eStation(BaseEnv):
 
         # set environment variable for bks gripper comm
         os.environ["BKS_HOST"] = SCHUNK_GRIPPER_HOST
-        self.gripper = SchunkEGK40_USB(SCHUNK_GRIPPER_HOST, SCHUNK_STROKE_OPTIONS.DEFAULT)
+        self.gripper = SchunkGripperProcess(SCHUNK_GRIPPER_HOST)
         self.gripper.max_grasp_force = self.gripper.gripper_specs.min_force  # minimal force for EGK40 is 55N
-        self.gripper.speed = self.gripper.gripper_specs.max_speed / 2
+        self.gripper.speed = self.gripper.gripper_specs.max_speed
         logger.info("connecting to robot.")
         self.robot = URrtde(ROBOT_IP, URrtde.UR3E_CONFIG, gripper=self.gripper)
 
@@ -195,7 +195,7 @@ class UR5eStation(BaseEnv):
 
         logger.debug(f"Setting gripper width to {gripper_width}")
         time_before_gripper = time.time()
-        self.gripper.move(gripper_width, set_speed_and_force=False)
+        self.gripper.servo(gripper_width)
         time_after_gripper = time.time()
         logger.debug(f"Gripper servo time: {time_after_gripper - time_before_gripper}")
 
@@ -237,6 +237,10 @@ if __name__ == "__main__":
     cv2.namedWindow("scene", cv2.WINDOW_NORMAL)
     cv2.resizeWindow("wrist", 640, 480)
     cv2.resizeWindow("scene", 640, 480)
+
+    action = agent.get_action(env.get_observations())
+    robot_se3, gripper = convert_abs_gello_actions_to_se3(action)
+    # move slowly to target first for 1s
 
     while True:
         loop_time = time.time()

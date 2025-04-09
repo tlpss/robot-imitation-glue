@@ -31,8 +31,32 @@ SCHUNK_DEFAULT_SPECS = ParallelPositionGripperSpecs(0.0829, 0.0, 150, 55, 0.0575
 
 class SchunkGripperProcess(ParallelPositionGripper):
     """
-    A process-based implementation of the Schunk gripper that allows continuous position polling
-    while providing command execution capabilities to the parent process.
+    A process-based implementation of the Schunk gripper.
+
+    This provides 'continuous' position polling, which is used to
+      1) keep the gripper communication alive (gripper needs interaction every 50ms), or it stops the communication)
+     and 2) minimize the time spent on waiting for the grippper position in the parent process, which can be important for robot learning applications to provide high-freq control loop.
+
+    It also provides an 'async' action interface for the gripper (needed to interleave with position polling, since the modbus  communcation is single-way)
+
+    The most important commands are the 'move' and 'servo' commands.
+
+    both update the absolute target position. The servo will already return once the command is passed to the gripper process,
+     the move will wait until the commands have been sent to the gripper. This takes approx 30ms.
+    With the move command, you can also wait for the gripper to 'finish' the command (i.e. stop moving, not necessarily reached the target position).
+
+    Note that we do some additional processing of the gripper move/servo commands:
+    Both use the 'MOVE_POS' command of the schunk gripper, but this was actually not designed for grasping objects and will throw errors if the gripper encounters
+    an object (ie has to apply force). You can overcome this by 'acknowledging' the error with the 'CMD_ACK' command.
+    However, if you then would try again to move in the same direction,
+    the gripper will throw an error again and this time it requires a 'full stop' to overcome this.
+    This is implemented in the bks.MakeReady() command, but this command takes an additional 30ms to execute
+    Therefore we manually check and only execute move commands if the gripper was not already moving in the same direction,
+    in case it did not reach its previous target.
+
+    To learn more about the gripper interface, see https://schunk.com/be/nl/grijpsystemen/parallelgrijper/egk/egk-40-mb-m-b/p/000000000001491762, commisioning document for MODBUS.
+
+    also note that the gripper units are in mm and that open = 0 and closed = max_width.
     """
 
     def __init__(
@@ -46,10 +70,10 @@ class SchunkGripperProcess(ParallelPositionGripper):
 
         # Create shared memory for gripper state
         self._position = mp.Value("f", 0.0)
+        self._last_target_position = mp.Value("f", 0.0)
 
         # Command queue for parent->child communication
         self._cmd_queue = mp.Queue()
-
         self._result_queue = mp.Queue(maxsize=1)
 
         # Flag to signal process termination
@@ -58,7 +82,14 @@ class SchunkGripperProcess(ParallelPositionGripper):
         # Create and start process
         self._process = mp.Process(
             target=self._gripper_process_main,
-            args=(usb_interface, self._position, self._cmd_queue, self._result_queue, self._terminate),
+            args=(
+                usb_interface,
+                self._position,
+                self._last_target_position,
+                self._cmd_queue,
+                self._result_queue,
+                self._terminate,
+            ),
         )
         self._process.daemon = True
         self._process.start()
@@ -70,17 +101,24 @@ class SchunkGripperProcess(ParallelPositionGripper):
         self,
         usb_interface: str,
         position,
+        last_target_position,
         cmd_queue: mp.Queue,
         result_queue: mp.Queue,
         terminate,
     ):
-        """Main function running in the child process"""
+        """Main function running in the child process
+        This continuously updates the gripper position and executes commands from the command queue if the queue is not empty
+        """
         # Initialize gripper
         gripper = BKSModule(usb_interface)
 
-        # Prepare gripper: Acknowledge any pending errors
-        gripper.command_code = eCmdCode.CMD_ACK
+        # Prepare gripper
         gripper.MakeReady()
+
+        # bookkeeping
+        gripper.set_pos = gripper.actual_pos
+        last_target_position.value = gripper.actual_pos
+
         time.sleep(0.1)
 
         # Main loop
@@ -93,9 +131,14 @@ class SchunkGripperProcess(ParallelPositionGripper):
                 assert result_queue.empty()
                 # get latest command from queue
                 cmd = cmd_queue.get()
+
                 try:
-                    result = self._execute_command(gripper, cmd)
-                    self._result_queue.put({"success": True, "result": result})
+                    result = self._execute_command(gripper, cmd, position, last_target_position, result_queue)
+                    # if this command was not blocking, put the result in the result queue
+                    # otherwise the queue was already filled by the execute_command function before the command was finished
+                    # this is currently only used for the servo() method, which does not wait for the command to be sent to the gripper.
+                    if not cmd.params or cmd.params.get("blocking", True):
+                        self._result_queue.put({"success": True, "result": result})
                 except Exception as e:
                     result_queue.put({"success": False, "error": str(e)})
 
@@ -111,20 +154,40 @@ class SchunkGripperProcess(ParallelPositionGripper):
             # Small sleep to prevent CPU hogging
             time.sleep(0.001)
 
-    def _execute_command(self, gripper: BKSModule, command: GripperCommand) -> Any:  # noqa: C901
+    def _execute_command(  # noqa: C901
+        self, gripper: BKSModule, command: GripperCommand, position, last_target_position, result_queue
+    ) -> Any:  # noqa: C901
         """Execute a command on the gripper"""
         logger.info(f"Executing command: {command.cmd_type}")
+
         if command.cmd_type == "move_pos":
+            # if non-blocking, put result in queue immediately, signalling that the command was received
+            if command.params and command.params.get("blocking", True) is False:
+                # print("non-blocking command; putting result in queue")
+                result_queue.put({"success": True, "result": None})
+
+            # check if the gripper was unable to reach its previous target, in this case we only move if
+            # the new target is in the opposite direction of the previous target
+            actual_pos = gripper.actual_pos
+            position.value = actual_pos
+            last_target_pos = last_target_position.value
+
+            if abs(actual_pos - last_target_pos) > 0.1:  # gripper did not reach its previous target
+                # print(f"gripper did not reach its previous target: {actual_pos} != {last_target_pos}")
+                # if new target is same direction: do not execute.
+                if last_target_pos > actual_pos and command.params.get("position") > actual_pos:
+                    return True
+                # if new target is same direction: do not execute.
+                if last_target_pos < actual_pos and command.params.get("position") < actual_pos:
+                    return True
+                print(f"executing move_pose nonetheless, new target: {command.params.get('position')}")
 
             pos = command.params.get("position")
 
-            gripper.MakeReady()
-
+            gripper.command_code = eCmdCode.CMD_ACK
             gripper.set_pos = pos
             gripper.command_code = eCmdCode.MOVE_POS
-
-            print(pos)
-            print(f"Executed command: {command.cmd_type}")
+            last_target_position.value = pos
             return True
 
         elif command.cmd_type == "grip":
@@ -197,10 +260,14 @@ class SchunkGripperProcess(ParallelPositionGripper):
         self._cmd_queue.put(command)
         result = self._result_queue.get(timeout=1.0)
         if result["success"]:
+            # print(f"command executed successfully: {command}, result={result}")
             return result["result"]
         else:
-            raise RuntimeError(f"Failed to execute command: {result['error']}")
+            raise RuntimeError(f"Failed to execute command: {command}, result={result}")
 
+    #########################################################
+    # interface methods
+    #########################################################
     @property
     def speed(self) -> float:
         # send get_vel command to gripper process
@@ -256,12 +323,19 @@ class SchunkGripperProcess(ParallelPositionGripper):
             GripperCommand(cmd_type="move_pos", params={"position": width_mm_gripper})
         )
 
+        time.sleep(0.11)
         # Create awaitable action that checks if the gripper has reached the target position
         return AwaitableAction(lambda: not self.is_moving())
 
+    def servo(self, width):
+        width = np.clip(width, self.gripper_specs.min_width, self.gripper_specs.max_width)
+        width_mm_gripper = (self.gripper_specs.max_width - width) * 1000.0
+        self._send_command_and_wait_for_result(
+            GripperCommand(cmd_type="move_pos", params={"position": width_mm_gripper, "blocking": False})
+        )
+
     def is_moving(self) -> bool:
         # check if speed is above minimum
-        print(f"current velocity: {self.get_current_velocity()}")
         return abs(self.get_current_velocity()) > 1e-6
 
     def grasp_object(self) -> AwaitableAction:
@@ -275,6 +349,7 @@ if __name__ == "__main__":
 
     try:
         gripper.speed = 0.04
+        gripper.max_grasp_force = gripper.gripper_specs.min_force
         target = 0.05
         position = gripper.get_current_width()
         print(f"Initial position: {position}")
