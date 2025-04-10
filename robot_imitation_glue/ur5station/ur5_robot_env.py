@@ -32,8 +32,9 @@ SCENE_CAM_RESOLUTION_TOPIC = "scene_resolution"
 
 ROBOT_IP = "10.42.0.163"
 
-SCHUNK_GRIPPER_HOST = "/dev/ttyUSB1,11,115200,8E1"  # run bks_scan -H <usb> to find the slaveID, run dmesg | grep tty to find the usb port
+SCHUNK_GRIPPER_HOST = "/dev/ttyUSB0,11,115200,8E1"  # run bks_scan -H <usb> to find the slaveID, run dmesg | grep tty to find the usb port
 
+HOME_JOINTS = np.array([-180, -90, 90, -90, -90, -90]) * np.pi / 180  # for left UR5e on dual arm setup in mano lab.
 
 logger = loguru.logger
 
@@ -53,6 +54,23 @@ class UR5eStation(BaseEnv):
     PROPRIO_OBS_SPEC = None
 
     def __init__(self):
+
+        # set up robot and gripper
+        # logger.info("connecting to gripper.")
+
+        # set environment variable for bks gripper comm
+        os.environ["BKS_HOST"] = SCHUNK_GRIPPER_HOST
+        self.gripper = SchunkGripperProcess(SCHUNK_GRIPPER_HOST)
+        time.sleep(2)
+        self.gripper.max_grasp_force = self.gripper.gripper_specs.min_force  # minimal force for EGK40 is 55N
+        self.gripper.speed = self.gripper.gripper_specs.max_speed
+        logger.info("connecting to robot.")
+        self.robot = URrtde(ROBOT_IP, URrtde.UR3E_CONFIG, gripper=self.gripper)
+
+        robot_awaitable = self.robot.move_to_joint_configuration(
+            HOME_JOINTS
+        )  # do not wait, let cameras initialize first
+
         # set up cameras
         initialize_ipc()
 
@@ -93,17 +111,7 @@ class UR5eStation(BaseEnv):
         # wait for first images
         time.sleep(2)
 
-        # set up robot and gripper
-        # logger.info("connecting to gripper.")
-
-        # set environment variable for bks gripper comm
-        os.environ["BKS_HOST"] = SCHUNK_GRIPPER_HOST
-        self.gripper = SchunkGripperProcess(SCHUNK_GRIPPER_HOST)
-        time.sleep(2)
-        self.gripper.max_grasp_force = self.gripper.gripper_specs.min_force  # minimal force for EGK40 is 55N
-        self.gripper.speed = self.gripper.gripper_specs.max_speed
-        logger.info("connecting to robot.")
-        self.robot = URrtde(ROBOT_IP, URrtde.UR3E_CONFIG, gripper=self.gripper)
+        robot_awaitable.wait()
 
         # set up additional sensors if needed.
 
@@ -210,20 +218,21 @@ class UR5eStation(BaseEnv):
         self.gripper.shutdown()
 
 
+def convert_abs_gello_actions_to_se3(action: np.ndarray):
+    tcp_pose = np.eye(4)
+    tcp_pose[2, 3] = 0.176
+    joints = action[:6]
+    gripper = action[6]
+    gripper = (1 - gripper) * 0.08  # convert to stroke width
+    pose = ur5e.forward_kinematics_with_tcp(*joints, tcp_pose)
+    return pose, gripper
+
+
 if __name__ == "__main__":
     # set cli logging level to debug
     from ur_analytic_ik import ur5e
 
     from robot_imitation_glue.agents.gello import DynamixelConfig, GelloAgent
-
-    def convert_abs_gello_actions_to_se3(action: np.ndarray):
-        tcp_pose = np.eye(4)
-        tcp_pose[2, 3] = 0.176
-        joints = action[:6]
-        gripper = action[6]
-        gripper = (1 - gripper) * 0.08  # convert to stroke width
-        pose = ur5e.forward_kinematics_with_tcp(*joints, tcp_pose)
-        return pose, gripper
 
     env = UR5eStation()
 
@@ -233,7 +242,7 @@ if __name__ == "__main__":
         joint_signs=[1, 1, -1, 1, 1, 1],
         gripper_config=(7, 194, 152),
     )
-    agent = GelloAgent(config, "/dev/ttyUSB0")
+    agent = GelloAgent(config, "/dev/ttyUSB1")
 
     cv2.namedWindow("wrist", cv2.WINDOW_NORMAL)
     cv2.namedWindow("scene", cv2.WINDOW_NORMAL)

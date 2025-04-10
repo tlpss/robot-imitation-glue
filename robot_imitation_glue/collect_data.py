@@ -173,6 +173,10 @@ def collect_data(  # noqa: C901
             target_pose, target_gripper_state, action
         )
 
+        # store the actions in absolute format, to facilitate any action conversion later on.
+        # observation["target_abs_robot_se3e_pose"] = new_robot_target_se3_pose
+        # observation["target_abs_gripper_pose"] = new_gripper_target_width
+
         policy_formatted_action = abs_pose_to_policy_action(
             target_pose, target_gripper_state, new_robot_target_se3_pose, new_gripper_target_width
         )
