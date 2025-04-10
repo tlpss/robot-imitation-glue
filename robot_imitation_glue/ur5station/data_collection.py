@@ -25,25 +25,22 @@ def abs_se3_to_policy_action_converter(robot_pose, gripper_pose, abs_se3_action,
 
 
 def policy_action_to_abs_se3_converter(robot_pose, gripper_pose, policy_action):
+    policy_action = policy_action.astype(np.float64)
     abs_position_target = policy_action[:3]
-    abs_rotation_x = policy_action[3:6]
-    abs_rotation_y = policy_action[6:9]
+    rot6D = policy_action[3:9]
     gripper_action = policy_action[9]
 
-    # Gramm-schmidt orthonormalization
-    abs_rotation_x = abs_rotation_x / np.linalg.norm(abs_rotation_x)
-    abs_rotation_y = abs_rotation_y / np.linalg.norm(abs_rotation_y)
-    abs_rotation_z = np.cross(abs_rotation_x, abs_rotation_y)
-    abs_rotation_z = abs_rotation_z / np.linalg.norm(abs_rotation_z)
-    abs_rotation_y = np.cross(abs_rotation_z, abs_rotation_x)
-    abs_rotation_y = abs_rotation_y / np.linalg.norm(abs_rotation_y)
-
     # convert to se3
+    x = rot6D[:3] / np.linalg.norm(rot6D[:3])
+    y = rot6D[3:] - np.dot(rot6D[3:], x) * x
+    y = y / np.linalg.norm(y)
+    z = np.cross(x, y)
+
     target_pose = np.eye(4)
     target_pose[:3, 3] = abs_position_target
-    target_pose[:3, 0] = abs_rotation_x
-    target_pose[:3, 1] = abs_rotation_y
-    target_pose[:3, 2] = abs_rotation_z
+    target_pose[:3, 0] = x
+    target_pose[:3, 1] = y
+    target_pose[:3, 2] = z
     return target_pose, gripper_action
 
 

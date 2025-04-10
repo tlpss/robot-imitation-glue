@@ -15,7 +15,9 @@ from airo_camera_toolkit.cameras.realsense.realsense import Realsense
 from airo_camera_toolkit.cameras.zed.zed import Zed
 from airo_robots.manipulators.hardware.ur_rtde import URrtde
 from airo_spatial_algebra.se3 import SE3Container, normalize_so3_matrix
+from ur_analytic_ik import ur5e
 
+from robot_imitation_glue.agents.gello import DynamixelConfig, GelloAgent
 from robot_imitation_glue.base import BaseEnv
 from robot_imitation_glue.grippers.schunk_process import SchunkGripperProcess
 from robot_imitation_glue.ipc_camera import RGBCameraPublisher, RGBCameraSubscriber, initialize_ipc
@@ -132,6 +134,12 @@ class UR5eStation(BaseEnv):
     def get_robot_pose_se3(self):
         return self.robot.get_tcp_pose()
 
+    def move_robot_to_tcp_pose(self, pose):
+        self.robot.move_to_tcp_pose(pose).wait()
+
+    def move_gripper(self, width):
+        self.gripper.move(width).wait()
+
     def get_gripper_opening(self):
         return np.array([self.gripper.get_current_width()])
 
@@ -185,7 +193,7 @@ class UR5eStation(BaseEnv):
         if duration < 0:
             logger.warning("Action duration is negative, setting it to 0")
             duration = 0
-        logger.debug(f"Moving robot to pose {robot_pose_se3} with duration {duration}")
+        logger.debug(f"Moving robot to pose \n {robot_pose_se3} with duration {duration}")
 
         robot_pose_se3[:3, :3] = normalize_so3_matrix(robot_pose_se3[:3, :3])
 
@@ -196,7 +204,19 @@ class UR5eStation(BaseEnv):
             logger.warning("Z coordinate is below zero . not executing action")
             return
 
-        self.robot.servo_to_tcp_pose(robot_pose_se3, duration)
+        valid_pose = True
+        if not self.robot.is_tcp_pose_reachable(robot_pose_se3):
+            logger.warning("TCP pose is not reachable, not executing action")
+            valid_pose = False
+        if np.linalg.norm(robot_pose_se3[:3, 3] - self.robot.get_tcp_pose()[:3, 3]) > 0.1:
+            logger.warning("TCP pose is too far from current pose, not executing action")
+            valid_pose = False
+        if robot_pose_se3[2, 3] < 0.0:
+            logger.warning("Z coordinate is below zero . not executing action")
+            valid_pose = False
+
+        if valid_pose:
+            self.robot.servo_to_tcp_pose(robot_pose_se3, duration)
 
         # move gripper to target width
         gripper_width = np.clip(
@@ -218,7 +238,7 @@ class UR5eStation(BaseEnv):
         self.gripper.shutdown()
 
 
-def convert_abs_gello_actions_to_se3(action: np.ndarray):
+def convert_abs_gello_actions_to_se3(current_pose, current_gripper_state, action: np.ndarray):
     tcp_pose = np.eye(4)
     tcp_pose[2, 3] = 0.176
     joints = action[:6]
@@ -228,21 +248,18 @@ def convert_abs_gello_actions_to_se3(action: np.ndarray):
     return pose, gripper
 
 
+dynamixel_config = DynamixelConfig(
+    joint_ids=[1, 2, 3, 4, 5, 6],
+    joint_offsets=(np.array([40, 16, 25, 40, 15, 7]) * np.pi / 16).tolist(),
+    joint_signs=[1, 1, -1, 1, 1, 1],
+    gripper_config=(7, 194, 152),
+)
 if __name__ == "__main__":
     # set cli logging level to debug
-    from ur_analytic_ik import ur5e
-
-    from robot_imitation_glue.agents.gello import DynamixelConfig, GelloAgent
 
     env = UR5eStation()
 
-    config = DynamixelConfig(
-        joint_ids=[1, 2, 3, 4, 5, 6],
-        joint_offsets=(np.array([40, 16, 25, 40, 15, 7]) * np.pi / 16).tolist(),
-        joint_signs=[1, 1, -1, 1, 1, 1],
-        gripper_config=(7, 194, 152),
-    )
-    agent = GelloAgent(config, "/dev/ttyUSB1")
+    agent = GelloAgent(dynamixel_config, "/dev/ttyUSB1")
 
     cv2.namedWindow("wrist", cv2.WINDOW_NORMAL)
     cv2.namedWindow("scene", cv2.WINDOW_NORMAL)

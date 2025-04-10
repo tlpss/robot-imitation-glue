@@ -38,6 +38,14 @@ class BaseEnv(abc.ABC):
     def get_gripper_opening(self):
         """absolute gripper opening in meters as a (1,) numpy array"""
 
+    @abc.abstractmethod
+    def move_robot_to_tcp_pose(self, pose):
+        """move robot to a given SE3 tcp pose"""
+
+    @abc.abstractmethod
+    def move_gripper(self, width):
+        """move gripper to a given width"""
+
     @property
     def action_spec(self):
         return self.ACTION_SPEC
@@ -47,9 +55,10 @@ class BaseEnv(abc.ABC):
         return self.PROPRIO_OBS_SPEC
 
 
-class BaseAgent:
+class BaseAgent(abc.ABC):
     ACTION_SPEC = None
 
+    @abc.abstractmethod
     def get_action(self, observation):
         pass
 
