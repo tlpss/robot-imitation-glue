@@ -84,7 +84,7 @@ if __name__ == "__main__":
         dataset_recorder,
         convert_policy,
         delta_action_to_abs_se3_converter,
-        fps=2,
+        fps=10,
         eval_dataset=dataset,
         eval_dataset_image_key="scene_image",
     )

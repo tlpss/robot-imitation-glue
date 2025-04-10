@@ -199,7 +199,7 @@ def eval(  # noqa: C901
 
             observations = env.get_observations()
 
-            vis_image = observations[eval_dataset_image_key]
+            vis_image = observations[eval_dataset_image_key].copy()
             ## print number of episodes to image
             cv2.putText(
                 vis_image,
