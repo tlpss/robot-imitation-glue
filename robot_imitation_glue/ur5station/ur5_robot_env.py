@@ -12,18 +12,17 @@ import cv2
 import loguru
 import numpy as np
 from airo_camera_toolkit.cameras.realsense.realsense import Realsense
-
-# from airo_camera_toolkit.cameras.zed.zed import Zed
+from airo_camera_toolkit.cameras.zed.zed import Zed
 from airo_robots.manipulators.hardware.ur_rtde import URrtde
 from airo_spatial_algebra.se3 import SE3Container, normalize_so3_matrix
 
 from robot_imitation_glue.base import BaseEnv
 from robot_imitation_glue.grippers.schunk_process import SchunkGripperProcess
-from robot_imitation_glue.ipc_camera import initialize_ipc
+from robot_imitation_glue.ipc_camera import RGBCameraPublisher, RGBCameraSubscriber, initialize_ipc
 
 # env consists of 1 zed scene camera, 1 wrist  realsense cameras and a UR5e robot + Schunk gripper
 
-WRIST_REALSENSE_SERIAL = "925322060348"
+WRIST_REALSENSE_SERIAL = "817612070315"
 WRIST_CAM_RGB_TOPIC = "wrist_rgb"
 WRIST_CAM_RESOLUTION_TOPIC = "wrist_resolution"
 
@@ -33,7 +32,7 @@ SCENE_CAM_RESOLUTION_TOPIC = "scene_resolution"
 
 ROBOT_IP = "10.42.0.163"
 
-SCHUNK_GRIPPER_HOST = "/dev/ttyUSB2,11,115200,8E1"  # run bks_scan -H <usb> to find the slaveID, run dmesg | grep tty to find the usb port
+SCHUNK_GRIPPER_HOST = "/dev/ttyUSB1,11,115200,8E1"  # run bks_scan -H <usb> to find the slaveID, run dmesg | grep tty to find the usb port
 
 
 logger = loguru.logger
@@ -44,8 +43,9 @@ class CameraFactory:
         return Realsense(resolution=Realsense.RESOLUTION_480, fps=30, serial_number=WRIST_REALSENSE_SERIAL)
 
     def create_scene_camera():
-        pass
-        # return Zed(resolution=Zed.RESOLUTION_HD2K, fps=30, depth_mode=Zed.DEPTH_MODE_PERFORMANCE,serial_number=SCENE_ZED_SERIAL)
+        return Zed(
+            resolution=Zed.RESOLUTION_VGA, fps=30, depth_mode=Zed.NONE_DEPTH_MODE, serial_number=SCENE_ZED_SERIAL
+        )
 
 
 class UR5eStation(BaseEnv):
@@ -56,37 +56,40 @@ class UR5eStation(BaseEnv):
         # set up cameras
         initialize_ipc()
 
-        # logger.info("Creating wrist camera publisher.")
-        # self._wrist_camera_publisher = RGBCameraPublisher(
-        #     CameraFactory.create_wrist_camera,
-        #     WRIST_CAM_RGB_TOPIC,
-        #     WRIST_CAM_RESOLUTION_TOPIC,
-        #     100,
-        # )
-        # self._wrist_camera_publisher.start()
+        logger.info("Creating wrist camera publisher.")
+        self._wrist_camera_publisher = RGBCameraPublisher(
+            CameraFactory.create_wrist_camera,
+            WRIST_CAM_RGB_TOPIC,
+            WRIST_CAM_RESOLUTION_TOPIC,
+            100,
+        )
+        self._wrist_camera_publisher.start()
 
-        # logger.info("Creating wrist camera subscriber.")
-        # self._wrist_camera_subscriber = RGBCameraSubscriber(
-        #     WRIST_CAM_RESOLUTION_TOPIC,
-        #     WRIST_CAM_RGB_TOPIC,
-        # )
+        logger.info("Creating wrist camera subscriber.")
+        self._wrist_camera_subscriber = RGBCameraSubscriber(
+            WRIST_CAM_RESOLUTION_TOPIC,
+            WRIST_CAM_RGB_TOPIC,
+        )
 
-        # logger.info("Creating scene camera publisher.")
-        # self._scene_camera_publisher = RGBCameraPublisher(
-        #     CameraFactory.create_scene_camera,
-        #     SCENE_CAM_RGB_TOPIC,
-        #     SCENE_CAM_RESOLUTION_TOPIC,
-        #     100,
-        # )
-        # self._scene_camera_publisher.start()
+        logger.info("Creating scene camera publisher.")
+        self._scene_camera_publisher = RGBCameraPublisher(
+            CameraFactory.create_scene_camera,
+            SCENE_CAM_RGB_TOPIC,
+            SCENE_CAM_RESOLUTION_TOPIC,
+            100,
+        )
+        self._scene_camera_publisher.start()
 
-        # logger.info("Creating scene camera subscriber.")
-        # self._scene_camera_subscriber = RGBCameraSubscriber(
-        #     SCENE_CAM_RESOLUTION_TOPIC,
-        #     SCENE_CAM_RGB_TOPIC,
-        # )
+        logger.info("Creating scene camera subscriber.")
+        self._scene_camera_subscriber = RGBCameraSubscriber(
+            SCENE_CAM_RESOLUTION_TOPIC,
+            SCENE_CAM_RGB_TOPIC,
+        )
 
-        # self._wrist_camera_subscriber = self._scene_camera_subscriber
+        self._wrist_camera_subscriber = RGBCameraSubscriber(
+            WRIST_CAM_RESOLUTION_TOPIC,
+            WRIST_CAM_RGB_TOPIC,
+        )
         # wait for first images
         time.sleep(2)
 
@@ -96,6 +99,7 @@ class UR5eStation(BaseEnv):
         # set environment variable for bks gripper comm
         os.environ["BKS_HOST"] = SCHUNK_GRIPPER_HOST
         self.gripper = SchunkGripperProcess(SCHUNK_GRIPPER_HOST)
+        time.sleep(2)
         self.gripper.max_grasp_force = self.gripper.gripper_specs.min_force  # minimal force for EGK40 is 55N
         self.gripper.speed = self.gripper.gripper_specs.max_speed
         logger.info("connecting to robot.")
@@ -128,8 +132,8 @@ class UR5eStation(BaseEnv):
         self.robot.servo_to_tcp_pose()
 
     def get_observations(self):
-        return {}
 
+        start_time = time.time()
         wrist_image = self._wrist_camera_subscriber.get_rgb_image_as_int()
         scene_image = self._scene_camera_subscriber.get_rgb_image_as_int()
         robot_state = self.get_robot_pose_euler().astype(np.float32)
@@ -137,15 +141,12 @@ class UR5eStation(BaseEnv):
         joints = self.robot.get_joint_configuration().astype(np.float32)
 
         state = np.concatenate((robot_state, gripper_state), axis=0)
-        # TODO: resize images (but still include the original?)
 
         # resize wrist images to 224x224
         wrist_image_resized = cv2.resize(wrist_image, (224, 224))
-        # resize scene img, cut first 200 x pixels
         scene_image_resized = scene_image.copy()
-        scene_image_resized = scene_image_resized[:, 200:]
         # resize scene image to 224x224
-        scene_image_resized = cv2.resize(scene_image_resized, (224, 224))
+        scene_image_resized = cv2.resize(scene_image_resized, (224, 224), interpolation=cv2.INTER_CUBIC)
 
         obs_dict = {
             "wrist_image_original": wrist_image,
@@ -157,6 +158,7 @@ class UR5eStation(BaseEnv):
             "gripper_state": gripper_state,
             "joints": joints,
         }
+        logger.info(f"get_observations time: {time.time() - start_time}")
 
         # add to rerun
         # rr.log("wrist",rr.Image(wrist_image))
@@ -203,9 +205,9 @@ class UR5eStation(BaseEnv):
         return
 
     def close(self):
-        return
         self._wrist_camera_publisher.stop()
         self._scene_camera_publisher.stop()
+        self.gripper.shutdown()
 
 
 if __name__ == "__main__":
@@ -238,21 +240,23 @@ if __name__ == "__main__":
     cv2.resizeWindow("wrist", 640, 480)
     cv2.resizeWindow("scene", 640, 480)
 
+    input("Press Enter to start teleoperation")
     action = agent.get_action(env.get_observations())
     robot_se3, gripper = convert_abs_gello_actions_to_se3(action)
-    # move slowly to target first for 1s
+    env.robot.servo_to_tcp_pose(robot_se3, 1.0)
 
     while True:
         loop_time = time.time()
         obs = env.get_observations()
-        # print(time.time())
-        # print(obs["wrist_image"].shape)
-        # cv2.imshow("wrist", obs["wrist_image"])
-        # cv2.imshow("scene", obs["scene_image"])
+        print(time.time())
+        print(obs["wrist_image"].shape)
+        cv2.imshow("wrist", obs["wrist_image"])
+        cv2.imshow("scene", obs["scene_image"])
 
         action = agent.get_action(obs)
         robot_se3, gripper = convert_abs_gello_actions_to_se3(action)
         env.act(robot_pose_se3=robot_se3, gripper_pose=gripper, timestamp=time.time() + 0.1)
+        print(obs["state"])
 
         loop_duration = time.time() - loop_time
         # wait for 100ms - loop time
