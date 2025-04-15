@@ -14,10 +14,11 @@ def make_lerobot_policy(pretrained_path, dataset_path):
     """ """
     # TODO: try to omit the need to load the dataset, bc it is not always on the same machine and is a source of errors..
     # not sure why Lerobot has not simply stored the metadata in an additional file.
-    # config["pretrained_path"] = path
-    # rmeove "type" key from policy_config
     policy_config = PreTrainedConfig.from_pretrained(pretrained_path)
     dataset = LeRobotDataset(repo_id="dataset", root=dataset_path)
+
+    # important! this actually loads the weight instead of random initialization.
+    policy_config.pretrained_path = pretrained_path
     policy = make_policy(policy_config, ds_meta=dataset.meta)
     policy.eval()
     return policy
@@ -60,7 +61,7 @@ class LerobotAgent(BaseAgent):
 
 if __name__ == "__main__":
 
-    path = "/home/tlips/Code/robot-imitation-glue/outputs/train/2025-04-10/13-15-24_pick-cube_diffusion/checkpoints/035000/pretrained_model"
+    path = "/home/tlips/Code/robot-imitation-glue/outputs/train/2025-04-10/13-15-24_pick-cube_diffusion/checkpoints/030000/pretrained_model"
     dataset_path = "/home/tlips/Code/robot-imitation-glue/datasets/pick-cube-remapped"
 
     policy = make_lerobot_policy(path, dataset_path).cpu()
@@ -70,9 +71,18 @@ if __name__ == "__main__":
     # test policy
 
     batch = dataset[0]
-    action = policy.select_action(batch)
+    batch.pop("action")
+    # unsqueeze all tensors
+    for k, v in batch.items():
+        if isinstance(v, torch.Tensor):
+            batch[k] = v.unsqueeze(0)
+
+    time_before = time.time()
+    action = policy.select_action(batch).squeeze(0)
+    time_after = time.time()
+    print(f"inferece took {time_after-time_before} s")
     print(f"policy action: {action}")
-    print(f"dataset ['action']: {batch['action']}")
+    print(f"dataset ['action']: {dataset[0]['action']}")
 
     print("testing inference on dummy observations")
 
