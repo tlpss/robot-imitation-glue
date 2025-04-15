@@ -77,6 +77,9 @@ class LeRobotDatasetRecorder(BaseDatasetRecorder):
             elif len(shape) == 1:
                 features[key] = {"dtype": "float32", "shape": shape, "names": None}
             elif len(shape) == 3:
+                if not shape[0] == 3:
+                    # not hannel first! reorder shape
+                    shape = (shape[2], shape[0], shape[1])
                 if use_videos:
                     features[key] = {"dtype": "video", "names": ["channel", "height", "width"], "shape": shape}
                 else:
@@ -98,6 +101,7 @@ class LeRobotDatasetRecorder(BaseDatasetRecorder):
             self.lerobot_dataset = LeRobotDataset(repo_id=dataset_name, root=self.root_dataset_dir)
             self.lerobot_dataset.start_image_writer(num_processes=0, num_threads=16)
             self._n_recorded_episodes = len(self.lerobot_dataset.episode_data_index)
+            print(f"Loaded {self._n_recorded_episodes} episodes.")
         else:
             print(f"Dataset {dataset_name} does not exist. Creating it.")
             self.lerobot_dataset = LeRobotDataset.create(

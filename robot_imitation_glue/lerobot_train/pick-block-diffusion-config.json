@@ -81,20 +81,20 @@
                     7
                 ]
             },
-            "scene-image": {
+            "scene_image": {
                 "type": "VISUAL",
                 "shape": [
                     3,
-                    224,
-                    224
+                    240,
+                    320
                 ]
             },
-            "wrist-image": {
+            "wrist_image": {
                 "type": "VISUAL",
                 "shape": [
                     3,
-                    224,
-                    224
+                    240,
+                    320
                 ]
             },
             "pixels": {
@@ -131,16 +131,16 @@
                 "type": "VISUAL",
                 "shape": [
                     3,
-                    224,
-                    224
+                    240,
+                    320
                 ]
             },
             "observation.images.scene_image": {
                 "type": "VISUAL",
                 "shape": [
                     3,
-                    224,
-                    224
+                    240,
+                    320
                 ]
             },
             "observation.state": {
@@ -165,8 +165,8 @@
         "drop_n_last_frames": 7,
         "vision_backbone": "resnet18",
         "crop_shape": [
-            196,
-            196
+            224,
+            288
         ],
         "crop_is_random": true,
         "pretrained_backbone_weights": null,
@@ -202,13 +202,12 @@
         "scheduler_name": "cosine",
         "scheduler_warmup_steps": 500
     },
-    "output_dir": "outputs/train/2025-04-10/13-15-24_pick-cube_diffusion",
     "job_name": "pick-cube_diffusion",
     "resume": false,
     "seed": 2025,
     "num_workers": 8,
     "batch_size": 32,
-    "steps": 500000,
+    "steps": 100000,
     "eval_freq": 0,
     "log_freq": 200,
     "save_checkpoint": true,

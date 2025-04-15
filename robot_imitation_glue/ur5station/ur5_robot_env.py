@@ -34,7 +34,7 @@ SCENE_CAM_RESOLUTION_TOPIC = "scene_resolution"
 
 ROBOT_IP = "10.42.0.163"
 
-SCHUNK_GRIPPER_HOST = "/dev/ttyUSB0,11,115200,8E1"  # run bks_scan -H <usb> to find the slaveID, run dmesg | grep tty to find the usb port
+SCHUNK_GRIPPER_HOST = "/dev/ttyUSB1,11,115200,8E1"  # run bks_scan -H <usb> to find the slaveID, run dmesg | grep tty to find the usb port
 
 HOME_JOINTS = np.array([-180, -90, 90, -90, -90, -90]) * np.pi / 180  # for left UR5e on dual arm setup in mano lab.
 
@@ -158,11 +158,10 @@ class UR5eStation(BaseEnv):
 
         state = np.concatenate((robot_state, gripper_state), axis=0)
 
-        # resize wrist images to 224x224
-        wrist_image_resized = cv2.resize(wrist_image, (224, 224))
-        scene_image_resized = scene_image.copy()
-        # resize scene image to 224x224
-        scene_image_resized = cv2.resize(scene_image_resized, (224, 224), interpolation=cv2.INTER_CUBIC)
+        # resize images
+
+        wrist_image_resized = cv2.resize(wrist_image, (320, 240), interpolation=cv2.INTER_CUBIC)
+        scene_image_resized = cv2.resize(scene_image, (320, 240), interpolation=cv2.INTER_CUBIC)
 
         obs_dict = {
             "wrist_image_original": wrist_image,
@@ -208,7 +207,7 @@ class UR5eStation(BaseEnv):
         if not self.robot.is_tcp_pose_reachable(robot_pose_se3):
             logger.warning("TCP pose is not reachable, not executing action")
             valid_pose = False
-        if np.linalg.norm(robot_pose_se3[:3, 3] - self.robot.get_tcp_pose()[:3, 3]) > 0.1:
+        if np.linalg.norm(robot_pose_se3[:3, 3] - self.robot.get_tcp_pose()[:3, 3]) > 0.2:
             logger.warning("TCP pose is too far from current pose, not executing action")
             valid_pose = False
         if robot_pose_se3[2, 3] < 0.0:

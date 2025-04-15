@@ -60,7 +60,7 @@ if __name__ == "__main__":
         joint_signs=[1, 1, -1, 1, 1, 1],
         gripper_config=(7, 194, 152),
     )
-    agent = GelloAgent(config, "/dev/ttyUSB1")
+    agent = GelloAgent(config, "/dev/ttyUSB0")
 
     dataset_recorder = LeRobotDatasetRecorder(
         example_obs_dict=env.get_observations(),

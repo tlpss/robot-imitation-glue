@@ -81,8 +81,8 @@ def remap_lerobot_dataset(  # noqa: C901
         root=new_root_dir,
         features=new_features,
         use_videos=True,
-        image_writer_processes=16,
-        image_writer_threads=0,
+        image_writer_processes=0,
+        image_writer_threads=16,
     )
 
     # Process each episode in the old dataset
