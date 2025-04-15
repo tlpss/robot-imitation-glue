@@ -207,11 +207,22 @@ class UR5eStation(BaseEnv):
         if not self.robot.is_tcp_pose_reachable(robot_pose_se3):
             logger.warning("TCP pose is not reachable, not executing action")
             valid_pose = False
-        if np.linalg.norm(robot_pose_se3[:3, 3] - self.robot.get_tcp_pose()[:3, 3]) > 0.2:
-            logger.warning("TCP pose is too far from current pose, not executing action")
-            valid_pose = False
+        MAX_TRANSLATION = 0.15
+        if np.linalg.norm(robot_pose_se3[:3, 3] - self.robot.get_tcp_pose()[:3, 3]) > MAX_TRANSLATION:
+            logger.warning("TCP pose is too far from current pose, clippping translation.")
+            # clip the translation.
+            direction = robot_pose_se3[:3, 3] - self.robot.get_tcp_pose()[:3, 3]
+            direction = direction / np.linalg.norm(direction)
+            robot_pose_se3[:3, 3] = self.robot.get_tcp_pose()[:3, 3] + 0.5 * MAX_TRANSLATION * direction
+            valid_pose = True
+
         if robot_pose_se3[2, 3] < 0.0:
             logger.warning("Z coordinate is below zero . not executing action")
+            valid_pose = False
+
+        # check if robot is still upright, by checking if the z-component of the z-vector is still negative.
+        if robot_pose_se3[2, 2] > 0.0:
+            logger.warning("robot gripper points upwards, not executing action.")
             valid_pose = False
 
         if valid_pose:
