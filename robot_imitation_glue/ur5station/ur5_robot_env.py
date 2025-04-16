@@ -35,10 +35,11 @@ SCENE_CAM_RESOLUTION_TOPIC = "scene_resolution"
 ROBOT_IP = "10.42.0.163"
 SCHUNK_TCP_OFFSET = 0.184
 
-SCHUNK_GRIPPER_HOST = "/dev/ttyUSB0,11,115200,8E1"  # run bks_scan -H <usb> to find the slaveID, run dmesg | grep tty to find the usb port
+SCHUNK_GRIPPER_HOST = "/dev/serial/by-id/usb-1a86_USB_Serial-if00-port0,11,115200,8E1"  # run bks_scan -H <usb> to find the slaveID, run dmesg | grep tty to find the usb port
 
 HOME_JOINTS = np.array([-180, -90, 90, -90, -90, -90]) * np.pi / 180  # for left UR5e on dual arm setup in mano lab.
 
+GELLO_AGENT_PORT = "/dev/serial/by-id/usb-FTDI_USB__-__Serial_Converter_FT792DZ5-if00-port0"
 logger = loguru.logger
 
 
@@ -281,7 +282,7 @@ if __name__ == "__main__":
 
     env = UR5eStation()
 
-    agent = GelloAgent(dynamixel_config, "/dev/ttyUSB1")
+    agent = GelloAgent(dynamixel_config, GELLO_AGENT_PORT)
 
     cv2.namedWindow("wrist", cv2.WINDOW_NORMAL)
     cv2.namedWindow("scene", cv2.WINDOW_NORMAL)

@@ -11,14 +11,17 @@ from robot_imitation_glue.dataset_recorder import LeRobotDatasetRecorder
 from robot_imitation_glue.eval_agent import eval
 from robot_imitation_glue.ur5station.data_collection import policy_action_to_abs_se3_converter
 from robot_imitation_glue.ur5station.ur5_robot_env import (
+    GELLO_AGENT_PORT,
     UR5eStation,
     convert_abs_gello_actions_to_se3,
     dynamixel_config,
 )
 
 if __name__ == "__main__":
-    checkpoint_path = "/home/tlips/Code/robot-imitation-glue/outputs/train/2025-04-10/13-15-24_pick-cube_diffusion/checkpoints/035000/pretrained_model"
-    dataset_path = "/home/tlips/Code/robot-imitation-glue/datasets/pick-cube-remapped"
+    checkpoint_path = "/home/tlips/Code/robot-imitation-glue/outputs/train/2025-04-15/10-52-19_pick-cube_diffusion/checkpoints/070000/pretrained_model"
+    dataset_path = "/home/tlips/Code/robot-imitation-glue/datasets/pick-cube-v2-remapped"
+
+    eval_dataset_name = "eval_diffusion_pick_cube"
 
     def preprocessor(obs_dict):
         scene_img = obs_dict["scene_image"]
@@ -31,7 +34,7 @@ if __name__ == "__main__":
         scene_image = scene_image.permute(2, 0, 1)
         wrist_image = wrist_image.permute(2, 0, 1)
 
-        transform = transforms.Compose([transforms.CenterCrop(196)])
+        transform = transforms.Compose([transforms.CenterCrop((224, 288))])
         scene_image = transform(scene_image)
         wrist_image = transform(wrist_image)
 
@@ -48,22 +51,20 @@ if __name__ == "__main__":
     env = UR5eStation()
     env.reset()
 
-    teleop_agent = GelloAgent(dynamixel_config, "/dev/ttyUSB1")
+    teleop_agent = GelloAgent(dynamixel_config, GELLO_AGENT_PORT)
 
     policy = make_lerobot_policy(checkpoint_path, dataset_path)
     lerobot_agent = LerobotAgent(policy, "cuda", preprocessor)
 
     # create a dataset recorder
 
-    dataset_name = "eval_diffusion_pick_cube"
-
-    if os.path.exists(f"datasets/{dataset_name}"):
-        os.system(f"rm -rf datasets/{dataset_name}")
+    if os.path.exists(f"datasets/{eval_dataset_name}"):
+        os.system(f"rm -rf datasets/{eval_dataset_name}")
     dataset_recorder = LeRobotDatasetRecorder(
         example_obs_dict=env.get_observations(),
         example_action=np.zeros((10,), dtype=np.float32),
-        root_dataset_dir=f"datasets/{dataset_name}",
-        dataset_name=dataset_name,
+        root_dataset_dir=f"datasets/{eval_dataset_name}",
+        dataset_name=eval_dataset_name,
         fps=10,
         use_videos=True,
     )

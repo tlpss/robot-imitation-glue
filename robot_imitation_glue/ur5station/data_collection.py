@@ -6,7 +6,11 @@ import numpy as np
 from robot_imitation_glue.agents.gello import DynamixelConfig, GelloAgent
 from robot_imitation_glue.collect_data import collect_data
 from robot_imitation_glue.dataset_recorder import LeRobotDatasetRecorder
-from robot_imitation_glue.ur5station.ur5_robot_env import UR5eStation, convert_abs_gello_actions_to_se3
+from robot_imitation_glue.ur5station.ur5_robot_env import (
+    GELLO_AGENT_PORT,
+    UR5eStation,
+    convert_abs_gello_actions_to_se3,
+)
 
 
 def abs_se3_to_policy_action_converter(robot_pose, gripper_pose, abs_se3_action, gripper_action):
@@ -60,7 +64,7 @@ if __name__ == "__main__":
         joint_signs=[1, 1, -1, 1, 1, 1],
         gripper_config=(7, 194, 152),
     )
-    agent = GelloAgent(config, "/dev/ttyUSB0")
+    agent = GelloAgent(config, GELLO_AGENT_PORT)
 
     dataset_recorder = LeRobotDatasetRecorder(
         example_obs_dict=env.get_observations(),
