@@ -1,11 +1,8 @@
 import json
-import os
-import shutil
 
 import click
-import tqdm
 
-from lerobot.common.datasets.lerobot_dataset import LeRobotDataset
+from robot_imitation_glue.lerobot_dataset.transform_dataset import transform_dataset
 
 
 @click.command()
@@ -44,69 +41,21 @@ def remap_lerobot_dataset(  # noqa: C901
     feature_mapping_dict = json.loads(feature_mapping)
     features_to_drop_list = json.loads(features_to_drop)
 
-    # Set default new repo ID if not provided
-    if new_repo_id is None:
-        new_repo_id = f"{repo_id}_remapped"
+    def remap_features(frame):
+        for old_key, new_key in feature_mapping_dict.items():
+            if old_key in frame:
+                frame[new_key] = frame.pop(old_key)
+        return frame
 
-    click.echo(f"Remapping features from {root_dir} to {new_root_dir}")
-    click.echo(f"Feature mapping: {feature_mapping_dict}")
-    click.echo(f"Features to drop: {features_to_drop_list}")
-
-    # Remove existing output directory if it exists
-    if os.path.exists(new_root_dir):
-        click.echo(f"Removing existing directory: {new_root_dir}")
-        shutil.rmtree(new_root_dir)
-
-    # Load the original dataset
-    click.echo(f"Loading dataset from {root_dir}")
-    dataset = LeRobotDataset(repo_id=repo_id, root=root_dir)
-
-    # Get the original features
-    old_features = dataset.features
-
-    # Create new features dictionary with renamed features
-    new_features = {}
-    for key, value in old_features.items():
-        new_features[feature_mapping_dict.get(key, key)] = value
-
-    # Remove features that should be dropped
-    for key in features_to_drop_list:
-        new_features.pop(key, None)
-
-    # Create a new empty dataset
-    click.echo(f"Creating new dataset at {new_root_dir}")
-    new_dataset = LeRobotDataset.create(
-        repo_id=new_repo_id,
-        fps=dataset.fps,
-        root=new_root_dir,
-        features=new_features,
-        use_videos=True,
-        image_writer_processes=0,
-        image_writer_threads=16,
+    transform_dataset(
+        repo_id=repo_id,
+        new_repo_id=new_repo_id,
+        root_dir=root_dir,
+        new_root_dir=new_root_dir,
+        features_to_drop=features_to_drop_list,
+        transform_fn=remap_features,
+        transform_features_fn=remap_features,
     )
-
-    # Process each episode in the old dataset
-    episode_indices = dataset.episode_data_index
-    click.echo(f"Processing {len(episode_indices['from'])} episodes")
-
-    for ep_idx in tqdm.tqdm(range(len(episode_indices["from"]))):
-        from_idx, to_idx = episode_indices["from"][ep_idx], episode_indices["to"][ep_idx]
-        for idx in range(from_idx, to_idx):
-            frame = dataset[idx]
-            new_frame = {}
-            for key, value in frame.items():
-                if key in features_to_drop_list:
-                    continue
-                if "index" in key or key == "timestamp":
-                    continue
-                if hasattr(value, "shape") and len(value.shape) == 0:
-                    value = value.unsqueeze(0)
-                if hasattr(value, "shape") and len(value.shape) == 3:
-                    value = value.permute(1, 2, 0)
-                new_frame[feature_mapping_dict.get(key, key)] = value
-
-            new_dataset.add_frame(new_frame)
-        new_dataset.save_episode()
 
     click.echo(f"Dataset remapping complete. New dataset saved at {new_root_dir}")
 

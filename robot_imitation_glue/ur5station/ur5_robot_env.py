@@ -33,8 +33,9 @@ SCENE_CAM_RGB_TOPIC = "scene_rgb"
 SCENE_CAM_RESOLUTION_TOPIC = "scene_resolution"
 
 ROBOT_IP = "10.42.0.163"
+SCHUNK_TCP_OFFSET = 0.184
 
-SCHUNK_GRIPPER_HOST = "/dev/ttyUSB1,11,115200,8E1"  # run bks_scan -H <usb> to find the slaveID, run dmesg | grep tty to find the usb port
+SCHUNK_GRIPPER_HOST = "/dev/ttyUSB0,11,115200,8E1"  # run bks_scan -H <usb> to find the slaveID, run dmesg | grep tty to find the usb port
 
 HOME_JOINTS = np.array([-180, -90, 90, -90, -90, -90]) * np.pi / 180  # for left UR5e on dual arm setup in mano lab.
 
@@ -249,11 +250,22 @@ class UR5eStation(BaseEnv):
 
 
 def convert_abs_gello_actions_to_se3(current_pose, current_gripper_state, action: np.ndarray):
+    del current_pose, current_gripper_state
     tcp_pose = np.eye(4)
-    tcp_pose[2, 3] = 0.176
+    tcp_pose[2, 3] = SCHUNK_TCP_OFFSET
     joints = action[:6]
     gripper = action[6]
     gripper = (1 - gripper) * 0.08  # convert to stroke width
+    pose = ur5e.forward_kinematics_with_tcp(*joints, tcp_pose)
+    return pose, gripper
+
+
+def abs_joint_policy_action_to_se3(current_pose, current_gripper_state, action: np.ndarray):
+    del current_pose, current_gripper_state
+    joints = action[:6]
+    gripper = action[6]
+    tcp_pose = np.eye(4)
+    tcp_pose[2, 3] = SCHUNK_TCP_OFFSET
     pose = ur5e.forward_kinematics_with_tcp(*joints, tcp_pose)
     return pose, gripper
 
