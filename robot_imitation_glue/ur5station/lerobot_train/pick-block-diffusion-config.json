@@ -64,60 +64,7 @@
         "use_imagenet_stats": true,
         "video_backend": "torchcodec"
     },
-    "env": {
-        "type": "pusht",
-        "task": "pick-block",
-        "fps": 10,
-        "features": {
-            "action": {
-                "type": "ACTION",
-                "shape": [
-                    10
-                ]
-            },
-            "state": {
-                "type": "STATE",
-                "shape": [
-                    7
-                ]
-            },
-            "scene_image": {
-                "type": "VISUAL",
-                "shape": [
-                    3,
-                    240,
-                    320
-                ]
-            },
-            "wrist_image": {
-                "type": "VISUAL",
-                "shape": [
-                    3,
-                    240,
-                    320
-                ]
-            },
-            "pixels": {
-                "type": "VISUAL",
-                "shape": [
-                    384,
-                    384,
-                    3
-                ]
-            }
-        },
-        "features_map": {
-            "action": "action",
-            "agent_pos": "observation.state",
-            "environment_state": "observation.environment_state",
-            "pixels": "observation.image"
-        },
-        "episode_length": 300,
-        "obs_type": "pixels_agent_pos",
-        "render_mode": "rgb_array",
-        "visualization_width": 384,
-        "visualization_height": 384
-    },
+    "env": null,
     "policy": {
         "type": "diffusion",
         "n_obs_steps": 2,
@@ -211,7 +158,7 @@
     "eval_freq": 0,
     "log_freq": 200,
     "save_checkpoint": true,
-    "save_freq": 5000,
+    "save_freq": 20000,
     "use_policy_training_preset": true,
     "optimizer": {
         "type": "adam",
