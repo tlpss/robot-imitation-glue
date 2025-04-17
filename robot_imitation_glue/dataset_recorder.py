@@ -100,7 +100,7 @@ class LeRobotDatasetRecorder(BaseDatasetRecorder):
             print(f"Dataset {dataset_name} already exists. Loading it.")
             self.lerobot_dataset = LeRobotDataset(repo_id=dataset_name, root=self.root_dataset_dir)
             self.lerobot_dataset.start_image_writer(num_processes=0, num_threads=16)
-            self._n_recorded_episodes = len(self.lerobot_dataset.episode_data_index)
+            self._n_recorded_episodes = len(self.lerobot_dataset.episode_data_index["from"])
             print(f"Loaded {self._n_recorded_episodes} episodes.")
         else:
             print(f"Dataset {dataset_name} does not exist. Creating it.")
