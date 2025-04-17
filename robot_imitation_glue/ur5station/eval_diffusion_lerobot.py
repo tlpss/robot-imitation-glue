@@ -1,5 +1,3 @@
-import os
-
 import numpy as np
 import torch
 
@@ -18,9 +16,10 @@ from robot_imitation_glue.ur5station.ur5_robot_env import (
 
 if __name__ == "__main__":
     checkpoint_path = "/home/tlips/Code/robot-imitation-glue/outputs/train/2025-04-15/10-52-19_pick-cube_diffusion/checkpoints/070000/pretrained_model"
-    dataset_path = "/home/tlips/Code/robot-imitation-glue/datasets/pick-cube-v2-remapped"
+    train_dataset_path = "/home/tlips/Code/robot-imitation-glue/datasets/pick-cube-v2-remapped"
+    eval_scenarios_dataset_path = "/home/tlips/Code/robot-imitation-glue/datasets/pick-cube-eval-scenarios"
 
-    eval_dataset_name = "eval_diffusion_pick_cube"
+    eval_dataset_name = "pick-cube-eval-DP"
 
     def preprocessor(obs_dict):
         scene_img = obs_dict["scene_image"]
@@ -48,13 +47,11 @@ if __name__ == "__main__":
 
     teleop_agent = GelloAgent(dynamixel_config, GELLO_AGENT_PORT)
 
-    policy = make_lerobot_policy(checkpoint_path, dataset_path)
+    policy = make_lerobot_policy(checkpoint_path, train_dataset_path)
     lerobot_agent = LerobotAgent(policy, "cuda", preprocessor)
 
     # create a dataset recorder
 
-    if os.path.exists(f"datasets/{eval_dataset_name}"):
-        os.system(f"rm -rf datasets/{eval_dataset_name}")
     dataset_recorder = LeRobotDatasetRecorder(
         example_obs_dict=env.get_observations(),
         example_action=np.zeros((10,), dtype=np.float32),
@@ -64,7 +61,7 @@ if __name__ == "__main__":
         use_videos=True,
     )
 
-    train_dataset = LeRobotDataset(repo_id="", root=dataset_path)
+    eval_scenarios_dataset = LeRobotDataset(repo_id="", root=eval_scenarios_dataset_path)
     input("Press Enter to start evaluation (should hold your teleop in place now!)")
     eval(
         env,
@@ -74,7 +71,7 @@ if __name__ == "__main__":
         policy_to_pose_converter=policy_action_to_abs_se3_converter,
         teleop_to_pose_converter=convert_abs_gello_actions_to_se3,
         fps=10,
-        eval_dataset=train_dataset,
-        eval_dataset_image_key="observation.images.scene_image",
+        eval_dataset=eval_scenarios_dataset,
+        eval_dataset_image_key="scene_image",
         env_observation_image_key="scene_image",
     )

@@ -114,7 +114,7 @@ def eval(  # noqa: C901
     rr.init("robot_imitation_glue", spawn=True)
 
     control_period = 1 / fps
-    num_rollouts = 0
+    num_rollouts = recorder.n_recorded_episodes
 
     while not state.is_stopped:
 
@@ -125,7 +125,7 @@ def eval(  # noqa: C901
         # this allows to set the initial state of the scene.
         if eval_dataset is not None:
             n_dataset_episodes = eval_dataset.num_episodes
-            if num_rollouts <= n_dataset_episodes:
+            if num_rollouts < n_dataset_episodes:
                 eval_dataset_episode = num_rollouts
             else:
                 eval_dataset_episode = -1

@@ -1,5 +1,3 @@
-import os
-
 import numpy as np
 
 from lerobot.common.datasets.lerobot_dataset import LeRobotDataset
@@ -16,9 +14,9 @@ from robot_imitation_glue.ur5station.ur5_robot_env import (
 )
 
 if __name__ == "__main__":
-    dataset_path = "/home/tlips/Code/robot-imitation-glue/datasets/pick-cube-v2-remapped"
+    dataset_path = "/home/tlips/Code/robot-imitation-glue/datasets/pick-cube-eval-scenarios"
 
-    eval_dataset_name = "eval_pi0_pick_cube"
+    eval_dataset_name = "pick-cube-eval-pi0"
 
     def preprocessor(obs_dict):
         scene_img = obs_dict["scene_image"]
@@ -48,8 +46,6 @@ if __name__ == "__main__":
 
     # create a dataset recorder
 
-    if os.path.exists(f"datasets/{eval_dataset_name}"):
-        os.system(f"rm -rf datasets/{eval_dataset_name}")
     dataset_recorder = LeRobotDatasetRecorder(
         example_obs_dict=env.get_observations(),
         example_action=np.zeros((7,), dtype=np.float32),
@@ -70,6 +66,6 @@ if __name__ == "__main__":
         teleop_to_pose_converter=convert_abs_gello_actions_to_se3,
         fps=10,
         eval_dataset=train_dataset,
-        eval_dataset_image_key="observation.images.scene_image",
+        eval_dataset_image_key="scene_image",
         env_observation_image_key="scene_image",
     )

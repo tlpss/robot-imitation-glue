@@ -1,5 +1,3 @@
-import os
-
 import numpy as np
 import torch
 
@@ -19,8 +17,9 @@ from robot_imitation_glue.ur5station.ur5_robot_env import (
 if __name__ == "__main__":
     checkpoint_path = "/home/tlips/Code/robot-imitation-glue/outputs/train/2025-04-16/15-26-26_pick-block-act/checkpoints/200000/pretrained_model"
     dataset_path = "/home/tlips/Code/robot-imitation-glue/datasets/pick-cube-v2-remapped-joints"
+    eval_scenarios_dataset_path = "/home/tlips/Code/robot-imitation-glue/datasets/pick-cube-eval-scenarios"
 
-    eval_dataset_name = "eval_act_pick_cube"
+    eval_dataset_name = "pick-cube-eval-ACT"
 
     def preprocessor(obs_dict):
         scene_img = obs_dict["scene_image"]
@@ -54,9 +53,6 @@ if __name__ == "__main__":
     teleop_agent = GelloAgent(dynamixel_config, GELLO_AGENT_PORT)
 
     # create a dataset recorder
-
-    if os.path.exists(f"datasets/{eval_dataset_name}"):
-        os.system(f"rm -rf datasets/{eval_dataset_name}")
     dataset_recorder = LeRobotDatasetRecorder(
         example_obs_dict=env.get_observations(),
         example_action=np.zeros((7,), dtype=np.float32),
@@ -66,7 +62,7 @@ if __name__ == "__main__":
         use_videos=True,
     )
 
-    train_dataset = LeRobotDataset(repo_id="", root=dataset_path)
+    eval_scenarios_dataset = LeRobotDataset(repo_id="", root=eval_scenarios_dataset_path)
     input("Press Enter to start evaluation (should hold your teleop in place now!)")
     eval(
         env,
@@ -76,7 +72,7 @@ if __name__ == "__main__":
         policy_to_pose_converter=abs_joint_policy_action_to_se3,
         teleop_to_pose_converter=convert_abs_gello_actions_to_se3,
         fps=10,
-        eval_dataset=train_dataset,
-        eval_dataset_image_key="observation.images.scene_image",
+        eval_dataset=eval_scenarios_dataset,
+        eval_dataset_image_key="scene_image",
         env_observation_image_key="scene_image",
     )
