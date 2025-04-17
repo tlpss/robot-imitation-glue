@@ -2,7 +2,6 @@ import os
 
 import numpy as np
 import torch
-from torchvision import transforms
 
 from lerobot.common.datasets.lerobot_dataset import LeRobotDataset
 from robot_imitation_glue.agents.gello.gello_agent import GelloAgent
@@ -33,10 +32,6 @@ if __name__ == "__main__":
         wrist_image = torch.tensor(wrist_img).float() / 255.0
         scene_image = scene_image.permute(2, 0, 1)
         wrist_image = wrist_image.permute(2, 0, 1)
-
-        transform = transforms.Compose([transforms.CenterCrop((224, 288))])
-        scene_image = transform(scene_image)
-        wrist_image = transform(wrist_image)
 
         # unsqueeze images
         scene_image = scene_image.unsqueeze(0)
