@@ -46,7 +46,10 @@ class OpenPIAgent(BaseAgent):
                 observation["prompt"] = self.default_prompt
 
             time_start = time.time()
-            actions = self.client.infer(observation)["actions"]
+            actions = self.client.infer(observation)
+            if not isinstance(actions, dict):
+                raise ValueError(f"OpenPI remote inference returned : {actions}")
+            actions = actions["actions"]
             time_end = time.time()
             logger.info(f"OpenPI remote inference took {((time_end - time_start)*1000):.2f} ms")
             for i in range(self.n_action_steps):
@@ -56,6 +59,9 @@ class OpenPIAgent(BaseAgent):
         get_action_time_end = time.time()
         logger.info(f"OpenPI agent took {((get_action_time_end - get_action_time_start)*1000):.2f} ms")
         return action
+
+    def reset(self):
+        self.action_queue = []
 
 
 if __name__ == "__main__":

@@ -58,6 +58,9 @@ class LerobotAgent(BaseAgent):
             logger.info(f"Lerobot agent inference took {((time_end - time_start)*1000):.2f} ms")
         return action.squeeze(0).cpu().numpy()
 
+    def reset(self):
+        self.policy.reset()
+
 
 if __name__ == "__main__":
 

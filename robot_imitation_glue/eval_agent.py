@@ -202,6 +202,10 @@ def eval(  # noqa: C901
 
         logger.info("Start rollout")
         recorder.start_episode()
+
+        # reset to clear action buffers for chunking agents
+        policy_agent.reset()
+
         while not state.is_stopped and state.rollout_active:
             cycle_end_time = time.time() + control_period
 
