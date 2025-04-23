@@ -15,6 +15,7 @@ def transform_dataset(  # noqa: C901
     transform_fn: Callable[[Dict], Dict] = None,
     transform_features_fn: Optional[Callable[[Dict], Dict]] = None,
     features_to_drop: Optional[list] = None,
+    episodes_to_drop: Optional[list] = None,
     use_videos: bool = True,
     image_writer_processes: int = 0,
     image_writer_threads: int = 16,
@@ -71,6 +72,12 @@ def transform_dataset(  # noqa: C901
         print(f"Loading dataset from {root_dir or repo_id}")
 
     dataset = LeRobotDataset(repo_id=repo_id, root=root_dir)
+    if episodes_to_drop:
+        n_episodes = len(dataset.episode_data_index["from"])
+        episodes_to_include = [i for i in range(n_episodes)]
+        episodes_to_include = set(episodes_to_include).difference(set(episodes_to_drop))
+        print(f"dropping specified episodes, episodes to include = {episodes_to_include}")
+        dataset = LeRobotDataset(repo_id=repo_id, root=root_dir, episodes=episodes_to_include)
 
     # Get the original features
     old_features = dataset.features
