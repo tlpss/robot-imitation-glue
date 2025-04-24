@@ -82,7 +82,10 @@ class SpaceMouseAgent(BaseAgent):
             if abs(rot[i]) < self.deadzone:
                 rot[i] = 0
             else:
-                rot[i] *= self.rotation_scale
+                if i == 2:
+                    rot[i] *= 0.1
+                else:
+                    rot[i] *= self.rotation_scale
 
         gripper_action = 0
         if state.buttons[1]:

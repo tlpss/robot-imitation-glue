@@ -18,6 +18,10 @@ class OpenVLAAgent(BaseAgent):
     def __init__(self):
         self.counter = 0
 
+    def reset(self):
+        # Do nothing, is only for agents with action chunking
+        pass
+
     def get_action(self, observation=None):
         # Get observation image
         image = observation["scene_image"]
