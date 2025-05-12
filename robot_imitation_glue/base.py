@@ -62,6 +62,9 @@ class BaseAgent(abc.ABC):
     def get_action(self, observation):
         pass
 
+    def reset(self):
+        pass
+
     @property
     def action_spec(self):
         return self.ACTION_SPEC

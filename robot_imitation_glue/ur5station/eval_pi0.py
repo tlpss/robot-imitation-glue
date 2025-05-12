@@ -14,9 +14,10 @@ from robot_imitation_glue.ur5station.ur5_robot_env import (
 )
 
 if __name__ == "__main__":
-    dataset_path = "/home/tlips/Code/robot-imitation-glue/datasets/pick-cube-eval-scenarios"
+    dataset_path = "/home/tlips/Code/robot-imitation-glue/datasets/pour-cup-v2"
 
-    eval_dataset_name = "pick-cube-eval-pi0"
+    eval_dataset_name = "pour-cup-eval-pi0"
+    prompt = "pour the white mug in the transparent cup"
 
     def preprocessor(obs_dict):
         scene_img = obs_dict["scene_image"]
@@ -37,11 +38,11 @@ if __name__ == "__main__":
     teleop_agent = GelloAgent(dynamixel_config, GELLO_AGENT_PORT)
 
     pi0_agent = OpenPIAgent(
-        default_prompt="pick up the red cube and place it on the blue square",
+        default_prompt=prompt,
         observation_preprocessor=preprocessor,
         host="localhost",
         port=8000,
-        n_action_steps=8,
+        n_action_steps=10,
     )
 
     # create a dataset recorder

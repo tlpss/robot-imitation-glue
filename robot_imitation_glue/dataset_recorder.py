@@ -111,7 +111,7 @@ class LeRobotDatasetRecorder(BaseDatasetRecorder):
                 features=features,
                 use_videos=use_videos,
                 image_writer_processes=0,
-                image_writer_threads=16,
+                image_writer_threads=8,
             )
         print("Dataset created:", self.lerobot_dataset)
 
