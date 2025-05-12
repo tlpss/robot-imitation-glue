@@ -6,7 +6,7 @@ import numpy as np
 import rerun as rr
 
 from lerobot.common.datasets.lerobot_dataset import LeRobotDataset
-from robot_imitation_glue.base import BaseAgent, BaseDatasetRecorder
+from robot_imitation_glue.base import BaseAgent, BaseDatasetRecorder, BaseEnv
 from robot_imitation_glue.utils import precise_wait
 
 # create type for callable that takes obs and returns action
@@ -75,7 +75,7 @@ def init_keyboard_listener(event: Event, state: State):
 
 
 def eval(  # noqa: C901
-    env,
+    env: BaseEnv,
     teleop_agent: BaseAgent,
     policy_agent: BaseAgent,
     recorder: BaseDatasetRecorder,
@@ -84,6 +84,7 @@ def eval(  # noqa: C901
     fps=10,
     eval_dataset: LeRobotDataset = None,
     eval_dataset_image_key: str = "scene",
+    env_observation_image_key: str = "scene",
 ):
     """
     Evalulate a (policy) agent on a robot environment.
@@ -113,7 +114,7 @@ def eval(  # noqa: C901
     rr.init("robot_imitation_glue", spawn=True)
 
     control_period = 1 / fps
-    num_rollouts = 0
+    num_rollouts = recorder.n_recorded_episodes
 
     while not state.is_stopped:
 
@@ -124,7 +125,7 @@ def eval(  # noqa: C901
         # this allows to set the initial state of the scene.
         if eval_dataset is not None:
             n_dataset_episodes = eval_dataset.num_episodes
-            if num_rollouts <= n_dataset_episodes:
+            if num_rollouts < n_dataset_episodes:
                 eval_dataset_episode = num_rollouts
             else:
                 eval_dataset_episode = -1
@@ -153,12 +154,20 @@ def eval(  # noqa: C901
         target_gripper_state = env.get_gripper_opening()
 
         logger.info("Start teleop")
+        logger.debug("moveL robot to current teleop pose")
+        # first move slowly to the initial pose of the teleop device
+        action = teleop_agent.get_action(env.get_observations())
+        robot_pose, gripper_state = teleop_to_pose_converter(target_pose, target_gripper_state, action)
+        env.move_robot_to_tcp_pose(robot_pose)
+        logger.debug("robot moved to teleop pose")
+
         while not state.rollout_active:
             cycle_end_time = time.time() + control_period
 
             observations = env.get_observations()
 
-            vis_image = observations[eval_dataset_image_key]
+            vis_image = observations[env_observation_image_key]
+
             rr.log("scene", rr.Image(vis_image))
             if initial_scene_image is not None:
                 # blend initial scene image with current scene image
@@ -194,12 +203,17 @@ def eval(  # noqa: C901
 
         logger.info("Start rollout")
         recorder.start_episode()
+
+        # reset to clear action buffers for chunking agents
+        policy_agent.reset()
+
         while not state.is_stopped and state.rollout_active:
             cycle_end_time = time.time() + control_period
 
             observations = env.get_observations()
 
-            vis_image = observations[eval_dataset_image_key].copy()
+            vis_image = observations[env_observation_image_key]
+
             ## print number of episodes to image
             cv2.putText(
                 vis_image,
@@ -213,11 +227,15 @@ def eval(  # noqa: C901
             rr.log("scene", rr.Image(vis_image))
 
             action = policy_agent.get_action(observations)
+            logger.debug(f"policy action: {action}")
 
-            # convert teleop action to env action
+            # convert  action to env action
             new_robot_target_pose, new_target_gripper_state = policy_to_pose_converter(
                 target_pose, target_gripper_state, action
             )
+            logger.debug(f"new_robot_target_pose: {new_robot_target_pose}")
+            logger.debug(f"current robot pose: {env.get_robot_pose_se3()}")
+
             env.act(
                 robot_pose_se3=new_robot_target_pose,
                 gripper_pose=new_target_gripper_state,

@@ -15,8 +15,9 @@ class BaseEnv(abc.ABC):
     ACTION_SPEC = None
     PROPRIO_OBS_SPEC = None
 
+    @abc.abstractmethod
     def get_observations(self):
-        pass
+        """observations as a dict of (str, np.ndarray)"""
 
     @abc.abstractmethod
     def act(self, robot_pose_se3, gripper_pose, timestamp):
@@ -24,6 +25,26 @@ class BaseEnv(abc.ABC):
 
     def reset(self):
         pass
+
+    @abc.abstractmethod
+    def get_joint_configuration(self):
+        """joint configuration as a (n,) numpy array"""
+
+    @abc.abstractmethod
+    def get_robot_pose_se3(self):
+        """robot pose in base frame as a 4x4 numpy array"""
+
+    @abc.abstractmethod
+    def get_gripper_opening(self):
+        """absolute gripper opening in meters as a (1,) numpy array"""
+
+    @abc.abstractmethod
+    def move_robot_to_tcp_pose(self, pose):
+        """move robot to a given SE3 tcp pose"""
+
+    @abc.abstractmethod
+    def move_gripper(self, width):
+        """move gripper to a given width"""
 
     @property
     def action_spec(self):
@@ -34,10 +55,14 @@ class BaseEnv(abc.ABC):
         return self.PROPRIO_OBS_SPEC
 
 
-class BaseAgent:
+class BaseAgent(abc.ABC):
     ACTION_SPEC = None
 
+    @abc.abstractmethod
     def get_action(self, observation):
+        pass
+
+    def reset(self):
         pass
 
     @property

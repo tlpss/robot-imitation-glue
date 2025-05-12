@@ -145,21 +145,22 @@ def collect_data(  # noqa: C901
         vis_img = observation["scene_image"].copy()
 
         # visualize state is_recording, is_paused
-        cv2.putText(
-            vis_img, f"recording = {state.is_recording}", (10, 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1
-        )
-        cv2.putText(vis_img, f"Paused: {state.is_paused}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+        if state.is_recording:
+            cv2.putText(vis_img, "RECORDING", (10, 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 2)
+        if state.is_paused:
+            cv2.putText(vis_img, "PAUSED", (10, 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 255), 2)
         cv2.putText(
             vis_img,
-            f"num episodes collected: {dataset_recorder.n_recorded_episodes}",
+            f" # episodes: {dataset_recorder.n_recorded_episodes}",
             (10, 50),
             cv2.FONT_HERSHEY_SIMPLEX,
             0.5,
             (255, 255, 255),
-            1,
+            2,
         )
         rr.log("image", rr.Image(vis_img, rr.ColorModel.RGB))
         rr.log("wrist_image", rr.Image(observation["wrist_image"], rr.ColorModel.RGB))
+        rr.log("scene_image", rr.Image(observation["scene_image"], rr.ColorModel.RGB))
 
         # if paused, do not collect teleop or execute action
         if state.is_paused:
@@ -172,6 +173,10 @@ def collect_data(  # noqa: C901
         new_robot_target_se3_pose, new_gripper_target_width = teleop_to_pose_converter(
             target_pose, target_gripper_state, action
         )
+
+        # store the actions in absolute format, to facilitate any action conversion later on.
+        # observation["target_abs_robot_se3e_pose"] = new_robot_target_se3_pose
+        # observation["target_abs_gripper_pose"] = new_gripper_target_width
 
         policy_formatted_action = abs_pose_to_policy_action(
             target_pose, target_gripper_state, new_robot_target_se3_pose, new_gripper_target_width
@@ -204,80 +209,9 @@ def collect_data(  # noqa: C901
 
 if __name__ == "__main__":
     # create dummy env, agent and recorder to test flow.
-    import os
-    from pathlib import Path
+    from robot_imitation_glue.mock import MockAgent, MockEnv
 
-    from scipy.spatial.transform import Rotation as R
-
-    from robot_imitation_glue.dataset_recorder import LeRobotDatasetRecorder
-    from robot_imitation_glue.robot_env import UR3eStation
-    from robot_imitation_glue.spacemouse_agent import SpaceMouseAgent
-
-    env = UR3eStation()
+    env = MockEnv()
+    agent = MockAgent()
 
     dataset_name = "test_dataset"
-
-    def delta_action_to_abs_se3_converter(robot_pose_se3, gripper_state, action):
-        # convert spacemouse action to ur3e action
-        # we take the action to consist of a delta position, delta rotation and delta gripper width.
-        # the delta rotation is interpreted as expressed in a frame with the same orientation as the base frame but with the origin at the EEF.
-        # in this way, when rotating the spacemouse, the robot eef will not move around, while at the same time the axes of orientation
-        # do not depend on the current orientation of the EEF.
-
-        # the delta position is intepreted in the world frame and also applied on the EEF frame.
-
-        delta_pos = action[:3]
-        delta_rot = action[3:6]
-        gripper_action = action[6]
-
-        robot_trans = robot_pose_se3[:3, 3]
-        robot_SO3 = robot_pose_se3[:3, :3]
-
-        new_robot_trans = robot_trans + delta_pos
-        # rotation is now interpreted as euler and not as rotvec
-        # similar to Diffusion Policy.
-        # however, rotvec seems more principled (related to twist)
-        new_robot_SO3 = R.from_euler("xyz", delta_rot).as_matrix() @ robot_SO3
-
-        new_robot_SE3 = np.eye(4)
-        new_robot_SE3[:3, :3] = new_robot_SO3
-        new_robot_SE3[:3, 3] = new_robot_trans
-
-        new_gripper_state = gripper_state + gripper_action
-        new_gripper_state = np.clip(new_gripper_state, 0, 0.085)
-
-        return new_robot_SE3, new_gripper_state
-
-    def abs_se3_to_relative_policy_action_converter(robot_pose, gripper_pose, abs_se3_action, gripper_action):
-        relative_se3 = np.linalg.inv(robot_pose) @ abs_se3_action
-
-        relative_pos = relative_se3[:3, 3]
-        relative_euler = R.from_matrix(relative_se3[:3, :3]).as_euler("xyz")
-        relative_gripper = gripper_action - gripper_pose
-
-        return np.concatenate((relative_pos, relative_euler, relative_gripper), axis=0).astype(np.float32)
-
-    agent = SpaceMouseAgent()
-
-    if not os.path.exists("datasets"):
-        os.makedirs("datasets")
-    dataset_recorder = LeRobotDatasetRecorder(
-        example_obs_dict=env.get_observations(),
-        example_action=np.zeros((7,), dtype=np.float32),
-        root_dataset_dir=Path(f"datasets/{dataset_name}"),
-        dataset_name=dataset_name,
-        fps=10,
-        use_videos=True,
-    )
-
-    collect_data(
-        env,
-        agent,
-        dataset_recorder,
-        10,
-        delta_action_to_abs_se3_converter,
-        abs_se3_to_relative_policy_action_converter,
-    )
-
-    env.close()
-    agent.close()

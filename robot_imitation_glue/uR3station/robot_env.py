@@ -16,7 +16,7 @@ from airo_robots.manipulators.hardware.ur_rtde import URrtde
 from airo_spatial_algebra.se3 import SE3Container, normalize_so3_matrix
 
 from robot_imitation_glue.base import BaseEnv
-from robot_imitation_glue.ipc_camera import RGBCameraPublisher, RGBCameraSubscriber, initialize_ipc
+from robot_imitation_glue.hardware.ipc_camera import RGBCameraPublisher, RGBCameraSubscriber, initialize_ipc
 
 # env consists of 2 realsense cameras and UR3e robot
 
@@ -96,6 +96,9 @@ class UR3eStation(BaseEnv):
 
         # rr.init("ur3e-station",spawn=True)
 
+    def get_joint_configuration(self):
+        return self.robot.get_joint_configuration()
+
     def get_robot_pose_euler(self):
         """
         pose as [x,y,z,rx,ry,rz] in robot base frame using Euler angles
@@ -106,9 +109,6 @@ class UR3eStation(BaseEnv):
         return np.concatenate((position, rotation_vector), axis=0)
 
     def get_robot_pose_se3(self):
-        """
-        pose as 4x4 homogeneous transformation matrix in robot base frame
-        """
         return self.robot.get_tcp_pose()
 
     def get_gripper_opening(self):
