@@ -135,7 +135,6 @@ class LeRobotDatasetRecorder(BaseDatasetRecorder):
         self.lerobot_dataset.add_frame(frame)
 
     def save_episode(self):
-        # TODO add frames here to dataset
         self.lerobot_dataset.save_episode()
         self._n_recorded_episodes += 1
 

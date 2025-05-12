@@ -21,7 +21,7 @@ class OpenVLAAgent(BaseAgent):
     def get_action(self, observation=None):
         # Get observation image
         image = observation["scene_image"]
-        image = self.augment(image)
+        image = self.centercrop_and_resize(image)
 
         # Language instruction & unnorm key are currently hardcoded
         instruction = "move the block to the blue rectangle"
@@ -31,7 +31,6 @@ class OpenVLAAgent(BaseAgent):
             "http://0.0.0.0:8000/act", json={"image": image, "instruction": instruction, "unnorm_key": unnorm_key}
         ).json()
         action = action.astype(np.float32)
-        print(action)
         return action
 
     def center_crop(self, img, new_width=None, new_height=None):
@@ -58,7 +57,7 @@ class OpenVLAAgent(BaseAgent):
 
         return center_cropped_img
 
-    def augment(self, temp_image):
+    def centercrop_and_resize(self, temp_image):
         crop_scale = 0.9
         sqrt_crop_scale = math.sqrt(crop_scale)
         temp_image_cropped = self.center_crop(

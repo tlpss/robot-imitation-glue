@@ -49,11 +49,11 @@ if __name__ == "__main__":
     import os
 
     from lerobot.common.datasets.lerobot_dataset import LeRobotDataset
+    from robot_imitation_glue.agents.openvla_agent import OpenVLAAgent
+    from robot_imitation_glue.agents.spacemouse_agent import SpaceMouseAgent
     from robot_imitation_glue.dataset_recorder import LeRobotDatasetRecorder
     from robot_imitation_glue.eval_agent import eval
-    from robot_imitation_glue.openvla_agent import OpenVLAAgent
-    from robot_imitation_glue.robot_env import UR3eStation
-    from robot_imitation_glue.spacemouse_agent import SpaceMouseAgent
+    from robot_imitation_glue.uR3station.robot_env import UR3eStation
 
     env = UR3eStation()
     env.reset()
