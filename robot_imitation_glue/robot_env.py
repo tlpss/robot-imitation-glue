@@ -49,6 +49,7 @@ class UR3eStation(BaseEnv):
         # set up cameras
         initialize_ipc()
 
+        # Put from here ...
         logger.info("Creating wrist camera publisher.")
         self._wrist_camera_publisher = RGBCameraPublisher(
             CameraFactory.create_wrist_camera,
@@ -63,6 +64,7 @@ class UR3eStation(BaseEnv):
             WRIST_CAM_RESOLUTION_TOPIC,
             WRIST_CAM_RGB_TOPIC,
         )
+        # ... till here in comments if don't want to use the wrist camera
 
         logger.info("Creating scene camera publisher.")
         self._scene_camera_publisher = RGBCameraPublisher(
@@ -79,7 +81,7 @@ class UR3eStation(BaseEnv):
             SCENE_CAM_RGB_TOPIC,
         )
 
-        # self._wrist_camera_subscriber = self._scene_camera_subscriber
+        # self._wrist_camera_subscriber = self._scene_camera_subscriber # Put this out of comments if don't want to use the wrist camera
         # wait for first images
         time.sleep(2)
 

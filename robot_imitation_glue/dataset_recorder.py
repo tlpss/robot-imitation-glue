@@ -132,7 +132,7 @@ class LeRobotDatasetRecorder(BaseDatasetRecorder):
 
         for key in self.state_keys:
             frame[key] = torch.tensor(obs[key])
-        self.lerobot_dataset.add_frame(frame)  # This is slow
+        self.lerobot_dataset.add_frame(frame)
 
     def save_episode(self):
         # TODO add frames here to dataset

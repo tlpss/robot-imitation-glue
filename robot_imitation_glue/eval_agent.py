@@ -167,6 +167,7 @@ def eval(  # noqa: C901
             observations = env.get_observations()
 
             vis_image = observations[env_observation_image_key]
+
             rr.log("scene", rr.Image(vis_image))
             if initial_scene_image is not None:
                 # blend initial scene image with current scene image
@@ -212,6 +213,7 @@ def eval(  # noqa: C901
             observations = env.get_observations()
 
             vis_image = observations[env_observation_image_key]
+
             ## print number of episodes to image
             cv2.putText(
                 vis_image,
