@@ -28,8 +28,8 @@ class OpenVLAAgent(BaseAgent):
         image = self.augment(image)
 
         # Language instruction & unnorm key are currently hardcoded
-        instruction = "move the block to the blue rectangle"
-        unnorm_key = "blue_only"
+        instruction = "move the block to the green circle"
+        unnorm_key = "lerobot_rlds"
 
         action = requests.post(
             "http://0.0.0.0:8000/act", json={"image": image, "instruction": instruction, "unnorm_key": unnorm_key}

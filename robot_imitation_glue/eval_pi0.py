@@ -10,9 +10,9 @@ from robot_imitation_glue.robot_env import UR3eStation
 from robot_imitation_glue.spacemouse_agent import SpaceMouseAgent
 
 if __name__ == "__main__":
-    dataset_path = "datasets/eval_dataset"
+    dataset_path = "datasets/init_cond_task2"
 
-    eval_dataset_name = "eval_task1"
+    eval_dataset_name = "eval_pi0_task2_objvar"
 
     def preprocessor(obs_dict):
         scene_img = obs_dict["scene_image"]
@@ -33,11 +33,11 @@ if __name__ == "__main__":
     teleop_agent = SpaceMouseAgent()
 
     pi0_agent = OpenPIAgent(
-        default_prompt="move the block to to the blue rectangle",
+        default_prompt="attach the circuit breaker to the DIN rail",
         observation_preprocessor=preprocessor,
         host="localhost",
         port=8000,
-        n_action_steps=8,
+        n_action_steps=15,
     )
 
     # create a dataset recorder

@@ -60,19 +60,19 @@ if __name__ == "__main__":
     teleop_agent = SpaceMouseAgent()
     policy_agent = OpenVLAAgent()
 
-    if os.path.exists("datasets"):
-        dataset = LeRobotDataset(repo_id="test_dataset", root="datasets")
+    if os.path.exists("datasets/eval_dataset"):
+        dataset = LeRobotDataset(repo_id="", root="datasets/eval_dataset")
     else:
         dataset = None
     # create a dataset recorder
 
-    if os.path.exists("datasets/test_dataset"):
-        os.system("rm -rf datasets/test_dataset")
+    if os.path.exists("datasets/eval_openvla_green"):
+        os.system("rm -rf datasets/eval_openvla_green")
     dataset_recorder = LeRobotDatasetRecorder(
         example_obs_dict=env.get_observations(),
         example_action=np.zeros((7,), dtype=np.float32),
-        root_dataset_dir="datasets/test_dataset",
-        dataset_name="test_dataset",
+        root_dataset_dir="datasets/eval_openvla_green",
+        dataset_name="eval_openvla_green",
         fps=10,
         use_videos=True,
     )

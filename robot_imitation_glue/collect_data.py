@@ -215,7 +215,7 @@ if __name__ == "__main__":
 
     env = UR3eStation()
 
-    dataset_name = "test_dataset"
+    dataset_name = "init_cond_task2"
 
     def delta_action_to_abs_se3_converter(robot_pose_se3, gripper_state, action):
         # convert spacemouse action to ur3e action
